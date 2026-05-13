@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Debate Mate UDF</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">DM</div>
+          <div>
+            <p>Debate Mate</p>
+            <span>Undip Debate Forum</span>
+          </div>
+        </div>
+
+        <nav class="nav" aria-label="Primary navigation">
+          <button class="nav-item active" data-section="dashboard">Dashboard</button>
+          <button class="nav-item" data-section="timer">Debate Timer</button>
+          <button class="nav-item" data-section="attendance">Presensi QR</button>
+          <button class="nav-item" data-section="calendar">Calendar</button>
+          <button class="nav-item" data-section="library">Knowledge Base</button>
+          <button class="nav-item" data-section="profiles">Profiles</button>
+          <button class="nav-item" data-section="transcript">AI Transcript</button>
+        </nav>
+
+        <div class="sidebar-note">
+          <span class="status-dot"></span>
+          Prototype capstone ready
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Capstone Teknik Komputer UNDIP</p>
+            <h1 id="page-title">Debate operations, all in one place.</h1>
+          </div>
+          <div class="user-pill">
+            <span>EB</span>
+            <strong>Naufal</strong>
+          </div>
+        </header>
+
+        <section id="dashboard" class="section active-section">
+          <div class="hero-panel">
+            <div>
+              <p class="eyebrow">Command center</p>
+              <h2>Manage training, attendance, mattering, and debate rounds without jumping apps.</h2>
+              <p>
+                Built for UDF workflows: weekly training, motion bank, member achievements,
+                shared timer, and AI-assisted transcript.
+              </p>
+            </div>
+            <div class="hero-metric">
+              <span>Next Training</span>
+              <strong>Fri, 19.00</strong>
+              <small>BP Practice: Economy Motions</small>
+            </div>
+          </div>
+
+          <div class="metric-grid">
+            <article class="metric-card">
+              <span>Attendance Rate</span>
+              <strong>86%</strong>
+              <p>Weekly training average</p>
+            </article>
+            <article class="metric-card">
+              <span>Active Members</span>
+              <strong>42</strong>
+              <p>Member and EB accounts</p>
+            </article>
+            <article class="metric-card">
+              <span>Motion Bank</span>
+              <strong>128</strong>
+              <p>Tagged by theme and format</p>
+            </article>
+            <article class="metric-card">
+              <span>Achievements</span>
+              <strong>31</strong>
+              <p>Competition records</p>
+            </article>
+          </div>
+
+          <div class="two-column">
+            <article class="panel">
+              <div class="panel-header">
+                <h3>Upcoming Agenda</h3>
+                <button class="ghost-button">View all</button>
+              </div>
+              <div class="agenda-list">
+                <div class="agenda-item">
+                  <time>May 08</time>
+                  <div>
+                    <strong>Weekly Training</strong>
+                    <span>BP roles, extension building, whip strategy</span>
+                  </div>
+                </div>
+                <div class="agenda-item">
+                  <time>May 12</time>
+                  <div>
+                    <strong>Mattering Session</strong>
+                    <span>Digital economy and labor policy</span>
+                  </div>
+                </div>
+                <div class="agenda-item">
+                  <time>May 17</time>
+                  <div>
+                    <strong>Internal Sparring</strong>
+                    <span>AP format, novice-open mixed teams</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <h3>Recent Achievements</h3>
+                <button class="ghost-button">Add record</button>
+              </div>
+              <div class="achievement-list">
+                <div>
+                  <span class="rank-badge">1st</span>
+                  <strong>Java Overland Debate</strong>
+                  <p>Open Champion, BP Format</p>
+                </div>
+                <div>
+                  <span class="rank-badge silver">SF</span>
+                  <strong>National Varsity Cup</strong>
+                  <p>Semifinalist, AP Format</p>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="timer" class="section">
+          <div class="timer-layout">
+            <aside class="timer-config panel">
+              <div class="panel-header">
+                <h3>Timer Setup</h3>
+                <span class="room-code" id="room-code">SOLO</span>
+              </div>
+
+              <label class="field-label">Timer type</label>
+              <div class="segmented" role="group" aria-label="Timer type">
+                <button class="segment active" data-timer-type="solo">Solo</button>
+                <button class="segment" data-timer-type="room">Room</button>
+              </div>
+
+              <label class="field-label">Debate format</label>
+              <div class="segmented" role="group" aria-label="Debate format">
+                <button class="segment active" data-format="AP">AP</button>
+                <button class="segment" data-format="BP">BP</button>
+              </div>
+
+              <label class="field-label" for="preset">Preset</label>
+              <select id="preset" class="input">
+                <option value="competition">Competition</option>
+                <option value="training">Training</option>
+                <option value="custom">Custom</option>
+              </select>
+
+              <div class="duration-grid">
+                <label>
+                  Speech min
+                  <input id="speech-minutes" class="input" type="number" min="1" max="15" value="7" />
+                </label>
+                <label>
+                  Reply min
+                  <input id="reply-minutes" class="input" type="number" min="1" max="8" value="4" />
+                </label>
+              </div>
+
+              <label class="switch-row">
+                <input id="sound-toggle" type="checkbox" checked />
+                Bell at protected time
+              </label>
+
+              <div class="room-actions" id="room-actions" hidden>
+                <button class="primary-button" id="create-room">Create room</button>
+                <button class="secondary-button" id="copy-room">Copy code</button>
+                <p>Open another tab and use the same browser to see the room timer sync.</p>
+              </div>
+            </aside>
+
+            <div class="timer-stage">
+              <div class="timer-card">
+                <div class="timer-meta">
+                  <span id="format-label">Asian Parliamentary</span>
+                  <span id="timer-type-label">Solo Timer</span>
+                </div>
+                <div class="speaker-line">
+                  <span id="side-label">Government</span>
+                  <h2 id="speaker-name">Prime Minister</h2>
+                </div>
+                <div class="time-display" id="time-display">07:00</div>
+                <div class="progress-track">
+                  <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div class="poi-window" id="poi-window">Protected time: no POI</div>
+                <div class="timer-controls">
+                  <button class="icon-button" id="prev-speaker" title="Previous speaker">Prev</button>
+                  <button class="primary-button large" id="start-pause">Start</button>
+                  <button class="icon-button" id="next-speaker" title="Next speaker">Next</button>
+                  <button class="secondary-button" id="reset-timer">Reset</button>
+                </div>
+              </div>
+
+              <div class="speech-strip" id="speech-strip"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="attendance" class="section">
+          <div class="two-column">
+            <article class="panel qr-panel">
+              <div class="panel-header">
+                <h3>Presensi QR</h3>
+                <span class="rank-badge">EB only</span>
+              </div>
+              <div class="qr-box" aria-label="Sample QR code">
+                <div></div><div></div><div></div><div></div><div></div>
+                <div></div><div></div><div></div><div></div><div></div>
+                <div></div><div></div><div></div><div></div><div></div>
+                <div></div><div></div><div></div><div></div><div></div>
+                <div></div><div></div><div></div><div></div><div></div>
+              </div>
+              <p>QR dibuat per sesi training dengan expiry pendek untuk mengurangi titip absen.</p>
+              <button class="primary-button">Generate QR Session</button>
+            </article>
+            <article class="panel">
+              <h3>Attendance Tracker</h3>
+              <div class="table-list">
+                <div><span>Alif</span><strong>Present</strong></div>
+                <div><span>Sarah</span><strong>Present</strong></div>
+                <div><span>Raka</span><strong>Late</strong></div>
+                <div><span>Dea</span><strong>Excused</strong></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="calendar" class="section">
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Weekly and UDF Calendar</h3>
+              <button class="ghost-button">Add event</button>
+            </div>
+            <div class="calendar-grid">
+              <div><strong>Mon</strong><span></span></div>
+              <div><strong>Tue</strong><span>Mattering</span></div>
+              <div><strong>Wed</strong><span></span></div>
+              <div><strong>Thu</strong><span>EB Sync</span></div>
+              <div><strong>Fri</strong><span>Training</span></div>
+              <div><strong>Sat</strong><span>Sparring</span></div>
+              <div><strong>Sun</strong><span>Case Review</span></div>
+            </div>
+          </article>
+        </section>
+
+        <section id="library" class="section">
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Knowledge Base</h3>
+              <input class="input search" type="search" placeholder="Search motion, matter, case..." />
+            </div>
+            <div class="library-grid">
+              <div class="library-card">
+                <span>Motion Bank</span>
+                <strong>THBT developing countries should prioritize vocational education over university education.</strong>
+                <p>Tags: education, economy, development</p>
+              </div>
+              <div class="library-card">
+                <span>Matter Bank</span>
+                <strong>Digital economy and platform labor</strong>
+                <p>Arguments, examples, stakeholders, trade-offs.</p>
+              </div>
+              <div class="library-card">
+                <span>Competition Case</span>
+                <strong>Environmental justice case package</strong>
+                <p>Gov and Opp lines with rebuttal bank.</p>
+              </div>
+              <div class="library-card">
+                <span>Achievement Base</span>
+                <strong>National and regional awards</strong>
+                <p>Filter by member, team, year, and format.</p>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section id="profiles" class="section">
+          <div class="profile-grid">
+            <article class="profile-card">
+              <div class="avatar">AR</div>
+              <h3>Alif Ramadhan</h3>
+              <p>Deputy Prime Minister specialist. Interested in public policy and digital rights.</p>
+              <div class="chip-row">
+                <span>BP</span><span>Whip</span><span>LinkedIn</span>
+              </div>
+            </article>
+            <article class="profile-card">
+              <div class="avatar green">SD</div>
+              <h3>Sarah Dhiya</h3>
+              <p>Open speaker, mattering lead, and competition case curator.</p>
+              <div class="chip-row">
+                <span>AP</span><span>LO</span><span>Contact</span>
+              </div>
+            </article>
+            <article class="profile-card">
+              <div class="avatar gold">RK</div>
+              <h3>Raka Kurnia</h3>
+              <p>Novice mentor with achievements in regional varsity tournaments.</p>
+              <div class="chip-row">
+                <span>BP</span><span>OG</span><span>CV</span>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="transcript" class="section">
+          <div class="two-column">
+            <article class="panel">
+              <div class="panel-header">
+                <h3>AI Speech Transcript</h3>
+                <span class="rank-badge">Prototype</span>
+              </div>
+              <button class="primary-button" id="mock-record">Start Recording</button>
+              <p>
+                Production version can stream microphone audio to AI transcription and attach the
+                transcript to a debate room.
+              </p>
+            </article>
+            <article class="panel transcript-box">
+              <h3>Live Notes</h3>
+              <p id="transcript-text">
+                Transcript will appear here during debate, mattering, or adjudication feedback.
+              </p>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

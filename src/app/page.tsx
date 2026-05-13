@@ -1,66 +1,95 @@
-import Image from "next/image";
-import styles from "./page.module.css";
-
 export default function Home() {
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
+    <section id="dashboard" className="section active-section" style={{ display: 'block' }}>
+      <div className="hero-panel">
+        <div>
+          <p className="eyebrow">Command center</p>
+          <h2>Manage training, attendance, mattering, and debate rounds without jumping apps.</h2>
           <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
+            Built for UDF workflows: weekly training, motion bank, member achievements,
+            shared timer, and AI-assisted transcript.
           </p>
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="hero-metric">
+          <span>Next Training</span>
+          <strong>Fri, 19.00</strong>
+          <small>BP Practice: Economy Motions</small>
         </div>
-      </main>
-    </div>
+      </div>
+
+      <div className="metric-grid">
+        <article className="metric-card">
+          <span>Attendance Rate</span>
+          <strong>86%</strong>
+          <p>Weekly training average</p>
+        </article>
+        <article className="metric-card">
+          <span>Active Members</span>
+          <strong>42</strong>
+          <p>Member and EB accounts</p>
+        </article>
+        <article className="metric-card">
+          <span>Motion Bank</span>
+          <strong>128</strong>
+          <p>Tagged by theme and format</p>
+        </article>
+        <article className="metric-card">
+          <span>Achievements</span>
+          <strong>31</strong>
+          <p>Competition records</p>
+        </article>
+      </div>
+
+      <div className="two-column">
+        <article className="panel">
+          <div className="panel-header">
+            <h3>Upcoming Agenda</h3>
+            <button className="ghost-button">View all</button>
+          </div>
+          <div className="agenda-list">
+            <div className="agenda-item">
+              <time>May 08</time>
+              <div>
+                <strong>Weekly Training</strong>
+                <span>BP roles, extension building, whip strategy</span>
+              </div>
+            </div>
+            <div className="agenda-item">
+              <time>May 12</time>
+              <div>
+                <strong>Mattering Session</strong>
+                <span>Digital economy and labor policy</span>
+              </div>
+            </div>
+            <div className="agenda-item">
+              <time>May 17</time>
+              <div>
+                <strong>Internal Sparring</strong>
+                <span>AP format, novice-open mixed teams</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article className="panel">
+          <div className="panel-header">
+            <h3>Recent Achievements</h3>
+            <button className="ghost-button">Add record</button>
+          </div>
+          <div className="achievement-list">
+            <div>
+              <span className="rank-badge">1st</span>
+              <strong>Java Overland Debate</strong>
+              <p>Open Champion, BP Format</p>
+            </div>
+            <div>
+              <span className="rank-badge silver">SF</span>
+              <strong>National Varsity Cup</strong>
+              <p>Semifinalist, AP Format</p>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
   );
 }
