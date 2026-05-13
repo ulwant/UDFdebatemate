@@ -9,10 +9,6 @@ export default async function ProfilePage() {
     .select('*')
     .order('created_at', { ascending: false });
 
-  if (error) {
-    console.error('Error fetching profiles:', error);
-  }
-
   return (
     <section id="profiles" className="section active-section" style={{ display: 'block' }}>
       {error ? (
