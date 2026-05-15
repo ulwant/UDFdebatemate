@@ -4,6 +4,7 @@ import "./globals.css";
 import Sidebar from "@/app/components/Sidebar";
 import Topbar from "@/app/components/Topbar";
 import DevServiceWorkerReset from "@/app/components/DevServiceWorkerReset";
+import { UserProvider } from "@/lib/UserContext";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -40,13 +41,15 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <DevServiceWorkerReset />
-        <div className="app-shell">
-          <Sidebar />
-          <main className="main">
-            <Topbar />
-            {children}
-          </main>
-        </div>
+        <UserProvider>
+          <div className="app-shell">
+            <Sidebar />
+            <main className="main">
+              <Topbar />
+              {children}
+            </main>
+          </div>
+        </UserProvider>
       </body>
     </html>
   );

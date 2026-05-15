@@ -343,7 +343,8 @@ export default function MyProfilePage() {
     if (profile.id) {
       await supabase.from('profiles').update(payload).eq('id', profile.id);
     } else {
-      const { data } = await supabase.from('profiles').insert([payload]).select().single();
+      const insertPayload = { ...payload, system_role: 'member' };
+      const { data } = await supabase.from('profiles').insert([insertPayload]).select().single();
       if (data) setProfile({ ...profile, ...data });
     }
 
@@ -432,7 +433,6 @@ export default function MyProfilePage() {
           ) : (
             <button className="secondary-button" onClick={() => setEditMode(true)}>Edit Profile</button>
           )}
-          <button className="ghost-button" onClick={handleLogout}>Logout</button>
         </div>
       </div>
 

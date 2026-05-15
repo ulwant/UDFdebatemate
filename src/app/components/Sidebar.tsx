@@ -1,32 +1,12 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { useUser } from '@/lib/UserContext';
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [canSeeEbArea, setCanSeeEbArea] = useState(false);
-
-  useEffect(() => {
-    async function loadRole() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setCanSeeEbArea(false);
-        return;
-      }
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('system_role')
-        .eq('user_id', session.user.id)
-        .single();
-
-      setCanSeeEbArea(profile?.system_role === 'eb' || profile?.system_role === 'admin');
-    }
-
-    loadRole();
-  }, []);
+  const { profile } = useUser();
+  const canSeeEbArea = profile?.system_role === 'eb' || profile?.system_role === 'admin';
   
   const navItems = [
     { label: 'Dashboard', path: '/' },

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 
-const TEST_PASSWORD = 'password123';
+// Constants removed
 
 async function withTimeout<T>(promise: PromiseLike<T>, label: string, timeoutMs = 12000): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -25,7 +25,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
-  const [testRoleLoading, setTestRoleLoading] = useState('');
+
   const [message, setMessage] = useState('');
   const router = useRouter();
 
@@ -76,98 +76,7 @@ export default function LoginPage() {
     }
   };
 
-  const createTestAccount = async (role: string) => {
-    if (testRoleLoading) return;
-    setTestRoleLoading(role);
-    setMessage(`Logging in as ${role}...`);
-
-    try {
-      const testEmail = `${role}@debatemate.com`;
-
-      let loginResponse = await withTimeout(supabase.auth.signInWithPassword({
-        email: testEmail,
-        password: TEST_PASSWORD,
-      }), 'Login test account');
-
-      if (loginResponse.error) {
-        setMessage(`Akun ${role} belum siap, mencoba membuat akun...`);
-
-        const signUpResponse = await withTimeout(supabase.auth.signUp({
-          email: testEmail,
-          password: TEST_PASSWORD,
-        }), 'Create test account');
-
-        if (signUpResponse.error && !/already|registered|exists/i.test(signUpResponse.error.message)) {
-          setMessage(`Gagal membuat akun ${role}: ${signUpResponse.error.message}`);
-          return;
-        }
-
-        loginResponse = await withTimeout(supabase.auth.signInWithPassword({
-          email: testEmail,
-          password: TEST_PASSWORD,
-        }), 'Login setelah create account');
-
-        if (loginResponse.error) {
-          setMessage(`Gagal login ${role}: ${loginResponse.error.message}. Kalau email confirmation aktif di Supabase, matikan dulu untuk test account atau confirm emailnya.`);
-          return;
-        }
-      }
-
-      if (!loginResponse.data.user) {
-        setMessage(`Gagal login ${role}: Supabase tidak mengembalikan user.`);
-        return;
-      }
-
-      const userId = loginResponse.data.user.id;
-      setMessage(`Logged in. Menyiapkan profile ${role}...`);
-
-      // 3. Since we are logged in, RLS will pass. Update or create the profile.
-      const { data: existingProfile, error: profileLookupError } = await withTimeout(
-        supabase.from('profiles').select('id').eq('user_id', userId).maybeSingle(),
-        'Profile lookup'
-      );
-      if (profileLookupError) {
-        setMessage(`Account logged in but profile lookup failed: ${profileLookupError.message}`);
-        return;
-      }
-      
-      let profileError = null;
-      if (existingProfile) {
-        const { error } = await withTimeout(
-          supabase.from('profiles').update({
-            system_role: role,
-            name: `Test ${role.toUpperCase()}`
-          }).eq('id', existingProfile.id),
-          'Profile update'
-        );
-        profileError = error;
-      } else {
-        const { error } = await withTimeout(
-          supabase.from('profiles').insert({
-            user_id: userId,
-            name: `Test ${role.toUpperCase()}`,
-            avatar_initials: role.substring(0, 2).toUpperCase(),
-            system_role: role
-          }),
-          'Profile create'
-        );
-        profileError = error;
-      }
-
-      if (profileError) {
-        setMessage(`Account logged in but failed to set role: ${profileError.message}`);
-        return;
-      }
-
-      setMessage(`Logged in as ${role}. Redirecting...`);
-      router.push('/my-profile');
-      router.refresh();
-    } catch (error) {
-      setMessage(`Unexpected login error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setTestRoleLoading('');
-    }
-  };
+  // Developer testing methods removed for production security
 
   return (
     <section className="section active-section" style={{ display: 'block', maxWidth: '400px', margin: '0 auto', paddingTop: '4rem' }}>
@@ -214,17 +123,7 @@ export default function LoginPage() {
         </form>
       </article>
 
-      <article className="panel" style={{ marginTop: '20px', background: '#fff3cd', borderColor: '#ffe69c' }}>
-        <div className="panel-header" style={{ marginBottom: '10px' }}>
-          <h3 style={{ fontSize: '1rem', color: '#664d03' }}>🛠 Developer Panel</h3>
-        </div>
-        <p style={{ fontSize: '0.85rem', color: '#664d03', marginBottom: '16px' }}>Quickly create or login to test accounts (Password: password123).</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <button type="button" disabled={Boolean(testRoleLoading)} onPointerDown={() => setMessage('Tapped Login as Admin...')} onClick={() => createTestAccount('admin')} className="secondary-button" style={{ fontSize: '0.9rem', padding: '8px' }}>{testRoleLoading === 'admin' ? 'Logging in...' : 'Login as Admin'}</button>
-          <button type="button" disabled={Boolean(testRoleLoading)} onPointerDown={() => setMessage('Tapped Login as EB...')} onClick={() => createTestAccount('eb')} className="secondary-button" style={{ fontSize: '0.9rem', padding: '8px' }}>{testRoleLoading === 'eb' ? 'Logging in...' : 'Login as EB'}</button>
-          <button type="button" disabled={Boolean(testRoleLoading)} onPointerDown={() => setMessage('Tapped Login as Member...')} onClick={() => createTestAccount('member')} className="secondary-button" style={{ fontSize: '0.9rem', padding: '8px' }}>{testRoleLoading === 'member' ? 'Logging in...' : 'Login as Member'}</button>
-        </div>
-      </article>
+      {/* Developer Panel removed for production security */}
     </section>
   );
 }

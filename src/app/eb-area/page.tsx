@@ -133,7 +133,7 @@ export default function EbAreaPage() {
   const [attendanceViewMode, setAttendanceViewMode] = useState<'matrix' | 'history'>('matrix');
   
   // EB Area Navigation Tabs
-  const [activeAreaTab, setActiveAreaTab] = useState<'attendance' | 'roles'>('attendance');
+  const [activeAreaTab, setActiveAreaTab] = useState<'attendance' | 'roles' | 'authority'>('attendance');
 
   // Role Management State
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
@@ -368,6 +368,19 @@ export default function EbAreaPage() {
   }
 
   // Attendance Functions
+  async function updateUserSystemRole(profileId: string, newRole: string) {
+    if (!isAdmin) {
+      setAttendanceMessage('Hanya Admin yang dapat mengubah system role.');
+      return;
+    }
+    const { error } = await supabase.from('profiles').update({ system_role: newRole }).eq('id', profileId);
+    if (error) {
+      setAttendanceMessage(`Gagal mengubah system role: ${error.message}`);
+      return;
+    }
+    setAttendanceMessage('System role berhasil diupdate.');
+    await fetchAttendance(); // refresh profiles
+  }
   async function ensureAttendanceSession(weekly: WeeklySession) {
     const existingSession = attendanceSessionByWeeklyId.get(weekly.id);
     if (existingSession) return existingSession;
@@ -551,10 +564,71 @@ export default function EbAreaPage() {
         <div className="segmented" role="group">
           <button className={`segment ${activeAreaTab === 'attendance' ? 'active' : ''}`} onClick={() => setActiveAreaTab('attendance')}>Attendance</button>
           <button className={`segment ${activeAreaTab === 'roles' ? 'active' : ''}`} onClick={() => setActiveAreaTab('roles')}>Role Management</button>
+          {isAdmin && (
+            <button className={`segment ${activeAreaTab === 'authority' ? 'active' : ''}`} onClick={() => setActiveAreaTab('authority')}>User Authority</button>
+          )}
         </div>
       </div>
 
       {attendanceMessage && <div className={styles.notice}>{attendanceMessage}</div>}
+
+      {activeAreaTab === 'authority' && isAdmin && (
+        <article className="panel" style={{ marginTop: '16px' }}>
+          <div className="panel-header">
+            <div>
+              <h3>User Authority Management</h3>
+              <p className={styles.subtle}>Ubah tingkat akses system_role (member, eb, admin). HANYA UNTUK ADMIN.</p>
+            </div>
+          </div>
+          <div className={styles.attendanceTableWrap}>
+            <table className={styles.attendanceTable}>
+              <thead>
+                <tr>
+                  <th>Member Name</th>
+                  <th>Email / ID</th>
+                  <th>Current System Role</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allProfiles.map((p) => (
+                  <tr key={p.id}>
+                    <td>
+                      <div className={styles.memberCell}>
+                        <span>{getInitials(p.name)}</span>
+                        <div><strong>{p.name || 'Unnamed User'}</strong></div>
+                      </div>
+                    </td>
+                    <td>{p.user_id?.substring(0, 8)}...</td>
+                    <td>
+                      <span className={`rank-badge`} style={{ 
+                        background: p.system_role === 'admin' ? '#bf616a22' : p.system_role === 'eb' ? '#d0877022' : '#81a1c122',
+                        color: p.system_role === 'admin' ? '#bf616a' : p.system_role === 'eb' ? '#d08770' : '#81a1c1',
+                        borderColor: 'transparent'
+                      }}>
+                        {p.system_role || 'member'}
+                      </span>
+                    </td>
+                    <td>
+                      <select 
+                        className="input" 
+                        style={{ padding: '4px 8px', height: 'auto', minHeight: '32px' }}
+                        value={p.system_role || 'member'}
+                        onChange={(e) => updateUserSystemRole(p.id!, e.target.value)}
+                        disabled={p.user_id === userId} // Prevent admin from changing their own role to avoid getting locked out
+                      >
+                        <option value="member">Member</option>
+                        <option value="eb">EB</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      )}
 
       {activeAreaTab === 'roles' && (
         <article className="panel" style={{ padding: 0 }}>
