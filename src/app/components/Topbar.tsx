@@ -150,7 +150,7 @@ export default function Topbar() {
               <div className="user-dropdown">
                 <div className="dropdown-header">
                   <p>Logged in as</p>
-                  <strong>{profile.email}</strong>
+                  <strong>{profile.system_role === 'admin' ? 'Administrator' : profile.system_role === 'eb' ? 'Executive Board' : 'Member'}</strong>
                 </div>
                 <Link href="/my-profile" className="dropdown-item" onClick={() => setIsOpen(false)}>
                   👤 My Profile

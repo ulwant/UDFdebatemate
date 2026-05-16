@@ -175,8 +175,8 @@ export default function EbAreaPage() {
 
   useEffect(() => {
     if (!userId || loading) return;
-    fetchAttendance();
-    fetchRoles();
+    // Run both fetches in parallel
+    Promise.all([fetchAttendance(), fetchRoles()]).catch(console.error);
   }, [userId, selectedMonth, loading]);
 
   async function fetchRoles() {
@@ -186,40 +186,48 @@ export default function EbAreaPage() {
 
   async function fetchAttendance() {
     const { start, end } = getMonthRange(selectedMonth);
-    const { data: weeklyRows } = await supabase
-      .from('weekly_sessions')
-      .select('id, title, scheduled_at, notes, is_locked')
-      .gte('scheduled_at', start)
-      .lt('scheduled_at', end)
-      .order('scheduled_at', { ascending: true });
+    
+    // Run first batch of queries in parallel
+    const [weeklyResult, profilesResult] = await Promise.all([
+      supabase
+        .from('weekly_sessions')
+        .select('id, title, scheduled_at, notes, is_locked')
+        .gte('scheduled_at', start)
+        .lt('scheduled_at', end)
+        .order('scheduled_at', { ascending: true }),
+      supabase
+        .from('profiles')
+        .select('id, user_id, name, caption, profile_picture_url, avatar_initials, avatar_color, system_role, discord_roles')
+        .order('name', { ascending: true }),
+    ]);
 
-    const weeklySessionRows = (weeklyRows || []) as WeeklySession[];
+    const weeklySessionRows = (weeklyResult.data || []) as WeeklySession[];
+    const profileRows = (profilesResult.data || []) as Profile[];
+    
     setWeeklySessions(weeklySessionRows);
+    setAllProfiles(profileRows);
 
     const weeklyIds = weeklySessionRows.map((item) => item.id);
-    const { data: sessions } = weeklyIds.length > 0
-      ? await supabase
+    
+    // Fetch attendance sessions based on weekly sessions
+    const sessionsQuery = weeklyIds.length > 0
+      ? supabase
         .from('attendance_sessions')
         .select('id, title, created_at, weekly_session_id')
         .in('weekly_session_id', weeklyIds)
         .order('created_at', { ascending: true })
-      : { data: [] };
+      : Promise.resolve({ data: [] });
 
+    const { data: sessions } = await sessionsQuery;
     const sessionRows = (sessions || []) as AttendanceSession[];
     setAttendanceSessions(sessionRows);
-
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, user_id, name, caption, profile_picture_url, avatar_initials, avatar_color, system_role, discord_roles')
-      .order('name', { ascending: true });
-
-    setAllProfiles((profiles || []) as Profile[]);
 
     if (sessionRows.length === 0) {
       setAttendanceRecords([]);
       return;
     }
 
+    // Fetch attendance records
     const { data: records } = await supabase
       .from('attendance_records')
       .select('id, session_id, user_id, status, created_at')

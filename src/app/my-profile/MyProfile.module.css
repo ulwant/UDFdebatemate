@@ -598,6 +598,85 @@
   font-weight: 800;
 }
 
+/* Tab Navigation Styling */
+.tabNav {
+  display: flex;
+  gap: 8px;
+  margin: 1rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.tabButton {
+  padding: 10px 18px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.tabButton:hover {
+  color: var(--ink);
+}
+
+.tabButton.active {
+  color: var(--green);
+  border-bottom-color: var(--green);
+}
+
+.tabContent {
+  animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.settingsForm {
+  max-width: 500px;
+}
+
+.settingsFormGroup {
+  margin-bottom: 1rem;
+}
+
+.settingsFormGroup label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.settingsFormGroup input {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.settingsFormActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.settingsMessage {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-top: 10px;
+}
+
 .attendanceTableWrap {
   overflow-x: auto;
 }

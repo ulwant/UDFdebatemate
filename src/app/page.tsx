@@ -1,13 +1,41 @@
+'use client';
+
+import React from 'react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabaseClient';
+
 export default function Home() {
+  const router = useRouter();
+  const [isClient, setIsClient] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsClient(true);
+    // Check if user is authenticated
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // If not authenticated, show login prompt
+      if (!session) {
+        // Show landing page with login prompt
+        return;
+      }
+    };
+    
+    checkAuth();
+  }, [router]);
+
+  if (!isClient) return null;
+
   return (
     <section id="dashboard" className="section active-section" style={{ display: 'block' }}>
+      {/* Hero Section */}
       <div className="hero-panel">
         <div>
-          <p className="eyebrow">Command center</p>
-          <h2>Manage training, attendance, mattering, and debate rounds without jumping apps.</h2>
+          <p className="eyebrow">🎯 Welcome to Debate Mate</p>
+          <h2>Manage training, attendance, motions, and debate rounds — all in one place.</h2>
           <p>
-            Built for UDF workflows: weekly training, motion bank, member achievements,
-            shared timer, and AI-assisted transcript.
+            Built for UDF (Undip Debate Forum): weekly training schedule, motion bank, member achievements,
+            shared timer, and AI-assisted transcript. Your complete debate operations platform.
           </p>
         </div>
         <div className="hero-metric">

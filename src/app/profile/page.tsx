@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabaseClient';
 import ProfileDirectory, { ProfileRow } from './ProfileDirectory';
 
-export const revalidate = 0;
+// Revalidate every 60 seconds (ISR)
+export const revalidate = 60;
 
 export default async function ProfilePage() {
   const { data: profiles, error } = await supabase

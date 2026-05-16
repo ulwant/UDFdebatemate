@@ -152,6 +152,14 @@ export default function MyProfilePage() {
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
   const [editingRoleName, setEditingRoleName] = useState('');
   const [editingRoleColor, setEditingRoleColor] = useState('#175b45');
+  
+  // Account settings state
+  const [activeTab, setActiveTab] = useState<'profile' | 'security'>('profile');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const isEb = profile.system_role === 'eb' || profile.system_role === 'admin';
 
@@ -416,6 +424,63 @@ export default function MyProfilePage() {
     setProfile({ ...profile, achievements: newAchievements });
   }
 
+  async function handleChangePassword() {
+    if (!user) return;
+    
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordMessage('Semua field password harus diisi.');
+      return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage('Password baru dan konfirmasi tidak cocok.');
+      return;
+    }
+    
+    if (newPassword.length < 6) {
+      setPasswordMessage('Password baru minimal 6 karakter.');
+      return;
+    }
+    
+    setChangingPassword(true);
+    
+    try {
+      // First, verify current password by attempting to sign in
+      if (!user.email) throw new Error('Email tidak tersedia.');
+      
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+      
+      if (signInError) {
+        setPasswordMessage('Password saat ini salah.');
+        setChangingPassword(false);
+        return;
+      }
+      
+      // Update password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      
+      if (updateError) {
+        setPasswordMessage(`Gagal mengubah password: ${updateError.message}`);
+      } else {
+        setPasswordMessage('✓ Password berhasil diubah!');
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        // Auto-clear success message after 3 seconds
+        setTimeout(() => setPasswordMessage(''), 3000);
+      }
+    } catch (err) {
+      setPasswordMessage(`Error: ${err instanceof Error ? err.message : 'Terjadi kesalahan'}`);
+    } finally {
+      setChangingPassword(false);
+    }
+  }
+
   if (loading) return <div style={{ padding: '2rem' }}>Loading...</div>;
 
   return (
@@ -425,17 +490,36 @@ export default function MyProfilePage() {
           <p className="eyebrow">My Account</p>
           <h2>Personal Dashboard</h2>
         </div>
-        <div className={styles.actionRow}>
-          {editMode ? (
-            <button className="primary-button" onClick={handleSave} disabled={saving}>
-              {saving ? 'Saving...' : 'Save Profile'}
-            </button>
-          ) : (
-            <button className="secondary-button" onClick={() => setEditMode(true)}>Edit Profile</button>
-          )}
-        </div>
       </div>
 
+      {/* Tab Navigation */}
+      <div className={styles.tabNav}>
+        <button
+          className={`${styles.tabButton} ${activeTab === 'profile' ? styles.active : ''}`}
+          onClick={() => setActiveTab('profile')}
+        >
+          Profile
+        </button>
+        <button
+          className={`${styles.tabButton} ${activeTab === 'security' ? styles.active : ''}`}
+          onClick={() => setActiveTab('security')}
+        >
+          Account Settings
+        </button>
+      </div>
+
+      {/* Profile Tab Content */}
+      {activeTab === 'profile' && (
+        <div className={styles.tabContent}>
+      <div className={styles.actionRow} style={{ marginBottom: '1rem' }}>
+        {editMode ? (
+          <button className="primary-button" onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving...' : 'Save Profile'}
+          </button>
+        ) : (
+          <button className="secondary-button" onClick={() => setEditMode(true)}>Edit Profile</button>
+        )}
+      </div>
       <article className={`${styles.linkedInCard} panel`}>
         <div 
           className={styles.cover} 
@@ -533,6 +617,31 @@ export default function MyProfilePage() {
         )}
       </article>
 
+      <article className="panel">
+        <div className="panel-header">
+          <h3>Account Settings</h3>
+        </div>
+        <div style={{ padding: '1rem' }}>
+          <p style={{ marginBottom: '0.5rem' }}>Change your account password.</p>
+          <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+            Current password
+            <input type="password" className="input" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+          </label>
+          <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+            New password
+            <input type="password" className="input" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+          </label>
+          <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+            Confirm new password
+            <input type="password" className="input" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+          </label>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button className="primary-button" onClick={handleChangePassword} disabled={changingPassword}>{changingPassword ? 'Changing...' : 'Change Password'}</button>
+            {passwordMessage && <span style={{ color: passwordMessage.startsWith('✓') ? 'green' : 'crimson' }}>{passwordMessage}</span>}
+          </div>
+        </div>
+      </article>
+
       {attendanceMessage && <div className={styles.notice}>{attendanceMessage}</div>}
 
       <div className="two-column">
@@ -597,6 +706,73 @@ export default function MyProfilePage() {
           )}
         </article>
       </div>
+        </div>
+      )}
+
+      {/* Account Settings Tab Content */}
+      {activeTab === 'security' && (
+        <div className={styles.tabContent}>
+          <article className="panel">
+            <div className="panel-header">
+              <h3>Change Password</h3>
+            </div>
+            <div style={{ padding: '1.5rem' }}>
+              <form className={styles.settingsForm} onSubmit={(e) => { e.preventDefault(); handleChangePassword(); }}>
+                <div className={styles.settingsFormGroup}>
+                  <label htmlFor="currentPass">Current Password</label>
+                  <input 
+                    id="currentPass"
+                    type="password" 
+                    className="input" 
+                    value={currentPassword} 
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Enter current password"
+                  />
+                </div>
+                <div className={styles.settingsFormGroup}>
+                  <label htmlFor="newPass">New Password</label>
+                  <input 
+                    id="newPass"
+                    type="password" 
+                    className="input" 
+                    value={newPassword} 
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password (min 6 characters)"
+                  />
+                </div>
+                <div className={styles.settingsFormGroup}>
+                  <label htmlFor="confirmPass">Confirm New Password</label>
+                  <input 
+                    id="confirmPass"
+                    type="password" 
+                    className="input" 
+                    value={confirmPassword} 
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm your new password"
+                  />
+                </div>
+                <div className={styles.settingsFormActions}>
+                  <button 
+                    type="submit"
+                    className="primary-button" 
+                    disabled={changingPassword}
+                  >
+                    {changingPassword ? 'Changing...' : 'Update Password'}
+                  </button>
+                  {passwordMessage && (
+                    <span 
+                      className={styles.settingsMessage}
+                      style={{ color: passwordMessage.startsWith('✓') ? '#16a34a' : '#dc2626' }}
+                    >
+                      {passwordMessage}
+                    </span>
+                  )}
+                </div>
+              </form>
+            </div>
+          </article>
+        </div>
+      )}
     </section>
   );
 }
