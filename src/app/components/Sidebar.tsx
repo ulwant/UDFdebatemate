@@ -7,18 +7,25 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { profile } = useUser();
   const canSeeEbArea = profile?.system_role === 'eb' || profile?.system_role === 'admin';
+  const isApproved = profile?.approval_status === 'approved' || canSeeEbArea;
   
-  const navItems = [
-    { label: 'Dashboard', path: '/' },
-    { label: 'Debate Timer', path: '/timer' },
-    { label: 'Presensi QR', path: '/presensi' },
-    ...(canSeeEbArea ? [{ label: 'EB Area', path: '/eb-area' }] : []),
-    { label: 'Calendar', path: '/calendar' },
-    { label: 'Knowledge Base', path: '/library' },
-    { label: 'Profiles', path: '/profile' },
-    { label: 'AI Transcript', path: '/transcript' },
-    { label: 'My Account', path: '/my-profile' },
-  ];
+  const navItems = isApproved
+    ? [
+        { label: 'Dashboard', path: '/' },
+        { label: 'Debate Timer', path: '/timer' },
+        { label: 'Presensi QR', path: '/presensi' },
+        ...(canSeeEbArea ? [{ label: 'EB Area', path: '/eb-area' }] : []),
+        { label: 'Calendar', path: '/calendar' },
+        { label: 'Knowledge Base', path: '/library' },
+        { label: 'Achievement Base', path: '/achievements' },
+        { label: 'Profiles', path: '/profile' },
+        { label: 'AI Transcript', path: '/transcript' },
+        { label: 'My Account', path: '/my-profile' },
+      ]
+    : [
+        { label: 'Dashboard', path: '/' },
+        { label: 'My Account', path: '/my-profile' },
+      ];
 
   return (
     <aside className="sidebar">
@@ -50,7 +57,7 @@ export default function Sidebar() {
 
       <div className="sidebar-note">
         <span className="status-dot"></span>
-        Prototype capstone ready
+        {isApproved ? 'Workspace ready' : 'Waiting for approval'}
       </div>
     </aside>
   );

@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { notifyCurrentUser } from '@/lib/notifications';
 
 function ScanContent() {
   const router = useRouter();
@@ -78,6 +79,12 @@ function ScanContent() {
     } else {
       setStatus('success');
       setMessage(`Successfully recorded attendance for: ${sessionData.title}`);
+      await notifyCurrentUser({
+        title: 'Attendance Recorded',
+        message: `Presensi kamu untuk "${sessionData.title}" berhasil tercatat.`,
+        link: '/presensi',
+        type: 'attendance',
+      });
     }
   }
 

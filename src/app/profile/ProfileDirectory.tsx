@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 import styles from './ProfileDirectory.module.css';
 
 type DiscordRole = { name: string; color: string };
@@ -14,6 +15,35 @@ type Achievement = {
   category?: string;
   documentation?: string;
   tab_url?: string;
+};
+type CanonicalHistoryRow = {
+  id: string;
+  competitionName: string;
+  competitionDate?: string | null;
+  tabUrl?: string | null;
+  teamName: string;
+  participantNames: string[];
+  category: string;
+  formatType: string;
+  achievements: Array<{ id: string; achievementName: string; documentationUrl?: string | null; isAchievement: boolean }>;
+};
+type ParticipantRecord = {
+  id: string;
+  competition_teams?: {
+    team_name: string;
+    category?: string | null;
+    format_type?: string | null;
+    competitions?: { name: string; competition_date?: string | null; tab_url?: string | null } | null | Array<{ name: string; competition_date?: string | null; tab_url?: string | null }>;
+    competition_participants?: Array<{ display_name: string; profiles?: { name?: string | null } | null | Array<{ name?: string | null }> }> | null;
+    competition_results?: Array<{ id: string; achievement_name?: string | null; documentation_url?: string | null; is_achievement: boolean }> | null;
+  } | null | Array<{
+    team_name: string;
+    category?: string | null;
+    format_type?: string | null;
+    competitions?: { name: string; competition_date?: string | null; tab_url?: string | null } | null | Array<{ name: string; competition_date?: string | null; tab_url?: string | null }>;
+    competition_participants?: Array<{ display_name: string; profiles?: { name?: string | null } | null | Array<{ name?: string | null }> }> | null;
+    competition_results?: Array<{ id: string; achievement_name?: string | null; documentation_url?: string | null; is_achievement: boolean }> | null;
+  }>;
 };
 
 export type ProfileRow = {
@@ -86,6 +116,11 @@ function normalizeUrl(value?: string) {
   return `https://${cleaned}`;
 }
 
+function firstItem<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] || null;
+  return value || null;
+}
+
 function whatsappUrl(value?: string) {
   if (!value) return '';
   const cleaned = value.trim();
@@ -98,6 +133,7 @@ function whatsappUrl(value?: string) {
 
 export default function ProfileDirectory({ profiles }: { profiles: ProfileRow[] }) {
   const [selectedProfile, setSelectedProfile] = useState<ProfileRow | null>(null);
+  const [canonicalHistory, setCanonicalHistory] = useState<CanonicalHistoryRow[]>([]);
 
   const selectedRoles = selectedProfile?.discord_roles || [];
   const selectedAchievements = selectedProfile?.achievements || [];
@@ -107,8 +143,70 @@ export default function ProfileDirectory({ profiles }: { profiles: ProfileRow[] 
   const selectedWebsite = normalizeUrl(selectedContacts.website);
 
   function openProfile(profile: ProfileRow) {
+    setCanonicalHistory([]);
     setSelectedProfile(profile);
   }
+
+  useEffect(() => {
+    async function fetchCanonicalHistory(profileId: string) {
+      const { data, error } = await supabase
+        .from('competition_participants')
+        .select(`
+          id,
+          competition_teams (
+            team_name,
+            category,
+            format_type,
+            competitions (
+              name,
+              competition_date,
+              tab_url
+            ),
+            competition_participants (
+              display_name,
+              profiles (
+                name
+              )
+            ),
+            competition_results (
+              id,
+              achievement_name,
+              documentation_url,
+              is_achievement
+            )
+          )
+        `)
+        .eq('profile_id', profileId);
+
+      if (error) {
+        setCanonicalHistory([]);
+        return;
+      }
+
+      setCanonicalHistory(((data || []) as unknown as ParticipantRecord[]).map((record) => {
+        const team = firstItem(record.competition_teams);
+        const competition = firstItem(team?.competitions);
+        return {
+          id: record.id,
+          competitionName: competition?.name || 'Competition',
+          competitionDate: competition?.competition_date || null,
+          tabUrl: competition?.tab_url || null,
+          teamName: team?.team_name || 'Individual',
+          participantNames: (team?.competition_participants || []).map((participant) => firstItem(participant.profiles)?.name || participant.display_name).filter(Boolean),
+          category: team?.category || 'Open',
+          formatType: team?.format_type || 'Debate - Team',
+          achievements: (team?.competition_results || []).map((result) => ({
+            id: result.id,
+            achievementName: result.achievement_name || 'Achievement',
+            documentationUrl: result.documentation_url || null,
+            isAchievement: result.is_achievement,
+          })),
+        };
+      }));
+    }
+
+    if (selectedProfile?.id) void fetchCanonicalHistory(selectedProfile.id);
+  }, [selectedProfile?.id]);
 
   return (
     <>
@@ -210,7 +308,47 @@ export default function ProfileDirectory({ profiles }: { profiles: ProfileRow[] 
               </section>
 
               <section>
-                <h3>Debate Competition History & Achievements</h3>
+                <h3>Debate History</h3>
+                {canonicalHistory.length > 0 ? (
+                  <div className={styles.timelineList}>
+                    {canonicalHistory.map((record) => (
+                      <div key={record.id} className={styles.timelineItem}>
+                        <strong>{record.competitionName}</strong>
+                        <span>{record.competitionDate || 'No date listed'}</span>
+                        <p>{record.teamName} / {record.category} / {record.formatType}</p>
+                        <small>{record.participantNames.join(', ')}</small>
+                        {record.tabUrl && <a href={normalizeUrl(record.tabUrl)} target="_blank" rel="noreferrer">View TAB</a>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p>No canonical debate history listed yet.</p>
+                )}
+              </section>
+
+              <section>
+                <h3>Achievements</h3>
+                {canonicalHistory.flatMap((record) => record.achievements.filter((achievement) => achievement.isAchievement).map((achievement) => ({ record, achievement }))).length > 0 ? (
+                  <div className={styles.timelineList}>
+                    {canonicalHistory.flatMap((record) => record.achievements.filter((achievement) => achievement.isAchievement).map((achievement) => (
+                      <div key={achievement.id} className={styles.timelineItem}>
+                        <strong>{achievement.achievementName}</strong>
+                        <span>{record.competitionName} {record.competitionDate && `- ${record.competitionDate}`}</span>
+                        <p>{record.teamName} / {record.category}</p>
+                        <div className={styles.linkRow}>
+                          {achievement.documentationUrl && <a href={normalizeUrl(achievement.documentationUrl)} target="_blank" rel="noreferrer">View Documentation</a>}
+                          {record.tabUrl && <a href={normalizeUrl(record.tabUrl)} target="_blank" rel="noreferrer">View TAB</a>}
+                        </div>
+                      </div>
+                    )))}
+                  </div>
+                ) : (
+                  <p>No canonical achievements listed yet.</p>
+                )}
+              </section>
+
+              <section>
+                <h3>Legacy Debate Records</h3>
                 {selectedAchievements.length > 0 || selectedHistory.length > 0 ? (
                   <div className={styles.timelineList}>
                     {selectedAchievements.map((achievement, index) => (

@@ -101,8 +101,11 @@ Jalankan semua SQL files di Supabase SQL Editor:
 supabase_attendance_dashboard_update.sql
 supabase_bookmarks_update.sql
 supabase_calendar_events.sql
+supabase_competition_records.sql
+supabase_competition_legacy_migration.sql  # optional, one-time legacy migration
 supabase_discord_roles.sql
 supabase_header_update.sql
+supabase_registration_approval.sql
 supabase_rbac_presensi.sql
 supabase_timer_rooms.sql
 ```

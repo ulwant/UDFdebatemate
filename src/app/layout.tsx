@@ -4,6 +4,7 @@ import "./globals.css";
 import Sidebar from "@/app/components/Sidebar";
 import Topbar from "@/app/components/Topbar";
 import DevServiceWorkerReset from "@/app/components/DevServiceWorkerReset";
+import ApprovalGate from "@/app/components/ApprovalGate";
 import { UserProvider } from "@/lib/UserContext";
 
 const inter = Inter({
@@ -46,7 +47,7 @@ export default function RootLayout({
             <Sidebar />
             <main className="main">
               <Topbar />
-              {children}
+              <ApprovalGate>{children}</ApprovalGate>
             </main>
           </div>
         </UserProvider>

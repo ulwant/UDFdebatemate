@@ -4,35 +4,87 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
+type DashboardMetric = {
+  attendanceRate: number;
+  activeMembers: number;
+  motionCount: number;
+  achievementCount: number;
+  nextTraining?: {
+    title: string;
+    scheduled_at: string;
+    notes?: string | null;
+  } | null;
+};
+
 export default function Home() {
   const router = useRouter();
-  const [isClient, setIsClient] = React.useState(false);
+  const [metrics, setMetrics] = React.useState<DashboardMetric>({
+    attendanceRate: 0,
+    activeMembers: 0,
+    motionCount: 0,
+    achievementCount: 0,
+    nextTraining: null,
+  });
+  const [dashboardLoading, setDashboardLoading] = React.useState(true);
 
   React.useEffect(() => {
-    setIsClient(true);
-    // Check if user is authenticated
-    const checkAuth = async () => {
+    async function loadDashboard() {
       const { data: { session } } = await supabase.auth.getSession();
-      
-      // If not authenticated, show login prompt
-      if (!session) {
-        // Show landing page with login prompt
-        return;
-      }
-    };
-    
-    checkAuth();
-  }, [router]);
+      const nowIso = new Date().toISOString();
+      const [profilesResult, motionsResult, nextTrainingResult, attendanceResult] = await Promise.all([
+        supabase.from('profiles').select('id, achievements', { count: 'exact' }).eq('approval_status', 'approved'),
+        supabase.from('motions').select('id', { count: 'exact', head: true }),
+        supabase.from('weekly_sessions').select('title, scheduled_at, notes').gte('scheduled_at', nowIso).order('scheduled_at', { ascending: true }).limit(1).maybeSingle(),
+        session
+          ? supabase.from('attendance_records').select('status', { count: 'exact' })
+          : Promise.resolve({ data: [], count: 0 }),
+      ]);
 
-  if (!isClient) return null;
+      const profiles = profilesResult.data || [];
+      const achievementCount = profiles.reduce((total, profile) => {
+        const achievements = Array.isArray(profile.achievements) ? profile.achievements : [];
+        return total + achievements.length;
+      }, 0);
+      const records = attendanceResult.data || [];
+      const present = records.filter((record) => record.status === 'Present').length;
+
+      setMetrics({
+        attendanceRate: records.length > 0 ? Math.round((present / records.length) * 100) : 0,
+        activeMembers: profilesResult.count || profiles.length,
+        motionCount: motionsResult.count || 0,
+        achievementCount,
+        nextTraining: nextTrainingResult.data || null,
+      });
+      setDashboardLoading(false);
+    }
+
+    void loadDashboard();
+  }, []);
+
+  async function goToLoginIfNeeded(path: string) {
+    const { data: { session } } = await supabase.auth.getSession();
+    router.push(session ? path : '/login');
+  }
+
+  const nextTrainingLabel = metrics.nextTraining
+    ? new Date(metrics.nextTraining.scheduled_at).toLocaleString('id-ID', { weekday: 'short', hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })
+    : 'Belum terjadwal';
+
+  const metricDisplay = dashboardLoading
+    ? { attendanceRate: '...', activeMembers: '...', motionCount: '...', achievementCount: '...' }
+    : {
+        attendanceRate: `${metrics.attendanceRate}%`,
+        activeMembers: String(metrics.activeMembers),
+        motionCount: String(metrics.motionCount),
+        achievementCount: String(metrics.achievementCount),
+      };
 
   return (
     <section id="dashboard" className="section active-section" style={{ display: 'block' }}>
-      {/* Hero Section */}
       <div className="hero-panel">
         <div>
-          <p className="eyebrow">🎯 Welcome to Debate Mate</p>
-          <h2>Manage training, attendance, motions, and debate rounds — all in one place.</h2>
+          <p className="eyebrow">Welcome to Debate Mate</p>
+          <h2>Manage training, attendance, motions, and debate rounds in one place.</h2>
           <p>
             Built for UDF (Undip Debate Forum): weekly training schedule, motion bank, member achievements,
             shared timer, and AI-assisted transcript. Your complete debate operations platform.
@@ -40,30 +92,30 @@ export default function Home() {
         </div>
         <div className="hero-metric">
           <span>Next Training</span>
-          <strong>Fri, 19.00</strong>
-          <small>BP Practice: Economy Motions</small>
+          <strong>{nextTrainingLabel}</strong>
+          <small>{metrics.nextTraining?.title || 'Tambahkan weekly dari EB Area'}</small>
         </div>
       </div>
 
       <div className="metric-grid">
         <article className="metric-card">
           <span>Attendance Rate</span>
-          <strong>86%</strong>
-          <p>Weekly training average</p>
+          <strong>{metricDisplay.attendanceRate}</strong>
+          <p>Present records average</p>
         </article>
         <article className="metric-card">
           <span>Active Members</span>
-          <strong>42</strong>
-          <p>Member and EB accounts</p>
+          <strong>{metricDisplay.activeMembers}</strong>
+          <p>Approved member and EB accounts</p>
         </article>
         <article className="metric-card">
           <span>Motion Bank</span>
-          <strong>128</strong>
+          <strong>{metricDisplay.motionCount}</strong>
           <p>Tagged by theme and format</p>
         </article>
         <article className="metric-card">
           <span>Achievements</span>
-          <strong>31</strong>
+          <strong>{metricDisplay.achievementCount}</strong>
           <p>Competition records</p>
         </article>
       </div>
@@ -72,49 +124,32 @@ export default function Home() {
         <article className="panel">
           <div className="panel-header">
             <h3>Upcoming Agenda</h3>
-            <button className="ghost-button">View all</button>
+            <button className="ghost-button" type="button" onClick={() => goToLoginIfNeeded('/calendar')}>View all</button>
           </div>
           <div className="agenda-list">
-            <div className="agenda-item">
-              <time>May 08</time>
-              <div>
-                <strong>Weekly Training</strong>
-                <span>BP roles, extension building, whip strategy</span>
+            {metrics.nextTraining ? (
+              <div className="agenda-item">
+                <time>{new Date(metrics.nextTraining.scheduled_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</time>
+                <div>
+                  <strong>{metrics.nextTraining.title}</strong>
+                  <span>{metrics.nextTraining.notes || 'Weekly training terdekat'}</span>
+                </div>
               </div>
-            </div>
-            <div className="agenda-item">
-              <time>May 12</time>
-              <div>
-                <strong>Mattering Session</strong>
-                <span>Digital economy and labor policy</span>
-              </div>
-            </div>
-            <div className="agenda-item">
-              <time>May 17</time>
-              <div>
-                <strong>Internal Sparring</strong>
-                <span>AP format, novice-open mixed teams</span>
-              </div>
-            </div>
+            ) : (
+              <p style={{ color: 'var(--muted)' }}>Belum ada weekly training berikutnya.</p>
+            )}
           </div>
         </article>
 
         <article className="panel">
           <div className="panel-header">
             <h3>Recent Achievements</h3>
-            <button className="ghost-button">Add record</button>
+            <button className="ghost-button" type="button" onClick={() => goToLoginIfNeeded('/achievements')}>Open base</button>
           </div>
           <div className="achievement-list">
-            <div>
-              <span className="rank-badge">1st</span>
-              <strong>Java Overland Debate</strong>
-              <p>Open Champion, BP Format</p>
-            </div>
-            <div>
-              <span className="rank-badge silver">SF</span>
-              <strong>National Varsity Cup</strong>
-              <p>Semifinalist, AP Format</p>
-            </div>
+            <p style={{ color: 'var(--muted)' }}>
+              Achievement summary sekarang dihitung dari profil member. Detail lengkapnya bisa discan, difilter, dan diurutkan dari Achievement Base.
+            </p>
           </div>
         </article>
       </div>

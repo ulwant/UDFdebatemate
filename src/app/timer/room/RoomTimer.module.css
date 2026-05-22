@@ -2,7 +2,7 @@
   min-height: calc(100vh - 180px);
   display: grid;
   place-items: center;
-  overflow: hidden;
+  overflow: auto;
   border-radius: 14px;
   background:
     radial-gradient(circle at 82% 4%, rgba(201, 155, 52, 0.28), transparent 24rem),
@@ -49,7 +49,10 @@
 
 .joinCard input,
 .createCard input,
-.createCard select {
+.createCard select,
+.lobbyCard input {
+  width: 100%;
+  box-sizing: border-box;
   min-height: 56px;
   border: 2px solid #d7ddd8;
   border-radius: 7px;
@@ -65,6 +68,7 @@
 
 .joinCard button,
 .createCard button {
+  width: 100%;
   min-height: 54px;
   border: 0;
   border-radius: 7px;
@@ -107,6 +111,7 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  width: 100%;
 }
 
 .formGrid label {
@@ -182,7 +187,7 @@
 }
 
 .timerPanel {
-  min-height: 560px;
+  min-height: 520px;
   display: grid;
   align-content: center;
   gap: 24px;
@@ -208,6 +213,16 @@
     radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.14), transparent 18rem),
     linear-gradient(145deg, rgba(191, 97, 106, 0.98), rgba(24, 32, 29, 0.98)),
     #bf616a;
+}
+
+.runningBanner {
+  justify-self: center;
+  padding: 9px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--gold-soft);
+  font-weight: 900;
 }
 
 .timerMeta,
@@ -264,6 +279,36 @@
   font-variant-numeric: tabular-nums;
 }
 
+.overtimeAlert,
+.poiLock,
+.recordSummary {
+  justify-self: center;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 999px;
+  padding: 9px 14px;
+  text-align: center;
+  font-weight: 900;
+}
+
+.overtimeAlert {
+  background: rgba(255, 255, 255, 0.92);
+  color: #a43f49;
+  animation: blinkAlert 0.9s steps(2, start) infinite;
+}
+
+.poiLock,
+.recordSummary {
+  background: rgba(255, 255, 255, 0.13);
+  color: var(--gold-soft);
+}
+
+@keyframes blinkAlert {
+  50% {
+    opacity: 0.36;
+  }
+}
+
 .progressTrack {
   height: 13px;
   overflow: hidden;
@@ -312,24 +357,140 @@
   gap: 10px;
 }
 
+.lobbyActions button {
+  flex: 1 1 140px;
+}
+
+.lobbyConfigGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.settingsGroup {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.groupLabel {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.durationRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.recordsPanel {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 16px 36px rgba(24, 32, 29, 0.1);
+}
+
+.recordsPanel h3 {
+  margin: 0 0 12px;
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.recordsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.recordCard {
+  display: grid;
+  gap: 4px;
+  min-height: 112px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.recordCard span,
+.recordCard small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.recordCard strong {
+  color: var(--green);
+  font-size: 0.96rem;
+}
+
+.recordCard b {
+  color: var(--ink);
+  font-size: 0.86rem;
+}
+
 .speechStrip {
+  margin-top: 16px;
   flex-wrap: wrap;
 }
 
 .speechStrip button {
   flex: 1 1 160px;
   min-height: 70px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--line);
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.12);
-  color: white;
+  background: var(--panel);
+  color: var(--ink);
   text-align: left;
   padding: 12px;
 }
 
+.speechStrip button span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.speechStrip button strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.92rem;
+}
+
 .speechStrip button.active {
-  background: white;
+  border-color: var(--green);
+  background: var(--green-soft);
   color: var(--green);
+}
+
+.speechStrip button.active span {
+  color: var(--green);
+}
+
+.speechStrip button.running {
+  border-color: #bf616a;
+  box-shadow: 0 0 0 2px rgba(191, 97, 106, 0.18);
+}
+
+.speechStrip button.recorded {
+  background: #fffaf0;
+}
+
+.speechStrip button em {
+  display: inline-block;
+  margin-top: 8px;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: rgba(23, 91, 69, 0.1);
+  color: var(--green);
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 900;
 }
 
 .readOnly {
@@ -346,7 +507,9 @@
 
 @media (max-width: 680px) {
   .choiceRow,
-  .formGrid {
+  .formGrid,
+  .lobbyConfigGrid,
+  .durationRow {
     grid-template-columns: 1fr;
   }
 

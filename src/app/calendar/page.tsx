@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { notifyApprovedMembers, notifyEbAdmins } from '@/lib/notifications';
 import styles from './Calendar.module.css';
 
 type WeeklySession = {
@@ -220,6 +221,13 @@ export default function CalendarPage() {
       return;
     }
 
+    const notifyAudience = eventDraft.visibility === 'eb_admin' ? notifyEbAdmins : notifyApprovedMembers;
+    await notifyAudience({
+      title: 'New Calendar Event',
+      message: `${eventDraft.title} ditambahkan ke kalender pada ${new Date(eventDraft.starts_at).toLocaleString('id-ID')}.`,
+      link: '/calendar',
+      type: 'calendar',
+    });
     setEventDraft(defaultEventDraft(selectedDate));
     setShowCreateCard(false);
     setNotice('Event kalender berhasil ditambahkan. Event ini terpisah dari weekly.');
@@ -279,16 +287,35 @@ export default function CalendarPage() {
       return;
     }
 
+    const notifyAudience = editingDraft.visibility === 'eb_admin' ? notifyEbAdmins : notifyApprovedMembers;
+    await notifyAudience({
+      title: 'Calendar Event Updated',
+      message: `${editingDraft.title} punya update jadwal/detail terbaru.`,
+      link: '/calendar',
+      type: 'calendar',
+      priority: 'high',
+    });
     cancelEdit();
     setNotice('Event kalender berhasil diupdate.');
     await fetchCalendar();
   }
 
   async function removeEvent(id: string) {
+    const removedEvent = calendarEvents.find((event) => event.id === id);
     const { error } = await supabase.from('calendar_events').delete().eq('id', id);
     if (error) {
       setNotice(`Gagal hapus event: ${error.message}`);
       return;
+    }
+    if (removedEvent) {
+      const notifyAudience = removedEvent.visibility === 'eb_admin' ? notifyEbAdmins : notifyApprovedMembers;
+      await notifyAudience({
+        title: 'Calendar Event Cancelled',
+        message: `${removedEvent.title} dihapus dari kalender.`,
+        link: '/calendar',
+        type: 'calendar',
+        priority: 'high',
+      });
     }
     setNotice('Event kalender berhasil dihapus.');
     setActiveItem(null);

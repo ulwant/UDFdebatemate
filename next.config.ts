@@ -11,7 +11,8 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ['192.168.17.1', '192.168.1.172'],
+  allowedDevOrigins: ['192.168.17.1', '192.168.1.172', '10.227.199.121', '192.168.100.159'],
+
   // Image optimization
   images: {
     remotePatterns: [

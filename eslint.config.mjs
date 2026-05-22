@@ -9,6 +9,9 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    "UDFdebatemate/**",
+    "public/sw.js",
+    "public/workbox-*.js",
     "out/**",
     "build/**",
     "next-env.d.ts",

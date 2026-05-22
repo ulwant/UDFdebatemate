@@ -7,6 +7,9 @@ export type UserProfile = {
   id: string;
   name: string;
   system_role: string;
+  approval_status?: 'pending_profile' | 'pending_approval' | 'approved' | 'rejected';
+  batch?: string;
+  member_type?: string;
   email?: string;
   profile_picture_url?: string;
 };
@@ -16,6 +19,9 @@ export type Notification = {
   title: string;
   message: string;
   link?: string;
+  type?: string;
+  priority?: string;
+  action_required?: boolean;
   is_read: boolean;
   created_at: string;
 };
@@ -26,6 +32,7 @@ type UserContextType = {
   unreadCount: number;
   loading: boolean;
   markAsRead: (id: string) => Promise<void>;
+  markAllNotificationsAsRead: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   refreshNotifications: () => Promise<void>;
 };
@@ -36,6 +43,7 @@ const UserContext = createContext<UserContextType>({
   unreadCount: 0,
   loading: true,
   markAsRead: async () => {},
+  markAllNotificationsAsRead: async () => {},
   refreshProfile: async () => {},
   refreshNotifications: async () => {},
 });
@@ -53,7 +61,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     if (session) {
       const { data } = await supabase
         .from('profiles')
-        .select('id, name, system_role, profile_picture_url')
+        .select('id, name, system_role, approval_status, batch, member_type, profile_picture_url')
         .eq('user_id', session.user.id)
         .single();
         
@@ -62,6 +70,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           id: data.id,
           name: data.name || 'User',
           system_role: data.system_role || 'member',
+          approval_status: data.approval_status || 'approved',
+          batch: data.batch || undefined,
+          member_type: data.member_type || undefined,
           email: session.user.email,
           profile_picture_url: data.profile_picture_url
         });
@@ -77,6 +88,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       const { data: notifs } = await supabase
         .from('notifications')
         .select('*')
+        .eq('user_id', session.user.id)
         .order('created_at', { ascending: false })
         .limit(10);
         
@@ -111,6 +123,18 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setUnreadCount(prev => Math.max(0, prev - 1));
   };
 
+  const markAllNotificationsAsRead = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', session.user.id)
+      .eq('is_read', false);
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    setUnreadCount(0);
+  };
+
   return (
     <UserContext.Provider value={{ 
       profile, 
@@ -118,6 +142,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       unreadCount, 
       loading,
       markAsRead, 
+      markAllNotificationsAsRead,
       refreshProfile: fetchProfile, 
       refreshNotifications: fetchNotifications 
     }}>
