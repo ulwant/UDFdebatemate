@@ -8,6 +8,7 @@ export default function Sidebar() {
   const { profile } = useUser();
   const canSeeEbArea = profile?.system_role === 'eb' || profile?.system_role === 'admin';
   const isApproved = profile?.approval_status === 'approved' || canSeeEbArea;
+  const isAdmin = profile?.system_role === 'admin';
   
   const navItems = isApproved
     ? [
@@ -15,6 +16,7 @@ export default function Sidebar() {
         { label: 'Debate Timer', path: '/timer' },
         { label: 'Presensi QR', path: '/presensi' },
         ...(canSeeEbArea ? [{ label: 'EB Area', path: '/eb-area' }] : []),
+        ...(isAdmin ? [{ label: 'Audit Log', path: '/audit-log' }] : []),
         { label: 'Calendar', path: '/calendar' },
         { label: 'Knowledge Base', path: '/library' },
         { label: 'Achievement Base', path: '/achievements' },

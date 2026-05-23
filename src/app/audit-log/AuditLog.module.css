@@ -1,0 +1,95 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 24px;
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 40px;
+}
+
+.logList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.logItem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.logMeta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+}
+
+.time {
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.actor {
+  font-weight: 600;
+}
+
+.role {
+  background: var(--green-soft);
+  color: var(--green);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.logAction {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.logAction strong {
+  color: var(--blue);
+  font-size: 0.9rem;
+}
+
+.logAction pre {
+  margin: 0;
+  padding: 10px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  overflow-x: auto;
+  color: var(--ink);
+}
+
+.logReadable p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.logReadable code {
+  background: var(--line);
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.75rem;
+}

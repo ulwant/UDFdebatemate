@@ -722,13 +722,11 @@ export default function AchievementBasePage() {
                 <tr key={row.rowId}>
                   <td>
                     <div className={styles.nameCell}>
-                      <span className={styles.fileIcon}>[]</span>
                       <strong>{row.achievementName}</strong>
                     </div>
                   </td>
                   <td>
                     <div className={styles.competitionCell}>
-                      <span className={styles.fileIcon}>[]</span>
                       <strong>{row.competitionName}</strong>
                     </div>
                   </td>

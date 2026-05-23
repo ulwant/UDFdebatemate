@@ -1,0 +1,112 @@
+.toastContainer {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 300px;
+  max-width: 400px;
+  padding: 16px;
+  background: var(--panel);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+  animation: slideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  border-left: 4px solid var(--blue);
+  overflow: hidden;
+  position: relative;
+}
+
+.toast.success { border-left-color: var(--green); }
+.toast.error { border-left-color: #dc2626; }
+.toast.warning { border-left-color: var(--gold); }
+
+.toast.removing {
+  animation: slideOut 0.2s ease-in forwards;
+}
+
+.icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: white;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.icon.success { background: var(--green); }
+.icon.error { background: #dc2626; }
+.icon.warning { background: var(--gold); }
+.icon.info { background: var(--blue); }
+
+.content {
+  flex-grow: 1;
+}
+
+.title {
+  margin: 0 0 4px 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.message {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.closeButton:hover {
+  background: var(--line);
+  color: var(--ink);
+}
+
+@keyframes slideIn {
+  from { transform: translateX(120%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideOut {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(120%); opacity: 0; }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 600px) {
+  .toastContainer {
+    bottom: 16px;
+    right: 16px;
+    left: 16px;
+  }
+  .toast {
+    min-width: 100%;
+    max-width: 100%;
+  }
+}

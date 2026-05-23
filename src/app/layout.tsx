@@ -33,6 +33,10 @@ export const metadata: Metadata = {
   },
 };
 
+import ThemeProvider from "@/app/components/ThemeProvider";
+
+import { ToastProvider } from "@/app/components/ToastContext";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -42,15 +46,19 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <DevServiceWorkerReset />
-        <UserProvider>
-          <div className="app-shell">
-            <Sidebar />
-            <main className="main">
-              <Topbar />
-              <ApprovalGate>{children}</ApprovalGate>
-            </main>
-          </div>
-        </UserProvider>
+        <ThemeProvider>
+          <ToastProvider>
+            <UserProvider>
+              <div className="app-shell">
+                <Sidebar />
+                <main className="main">
+                  <Topbar />
+                  <ApprovalGate>{children}</ApprovalGate>
+                </main>
+              </div>
+            </UserProvider>
+          </ToastProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

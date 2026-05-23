@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { notifyCurrentUser, notifyEbAdmins } from '@/lib/notifications';
 import styles from './MyProfile.module.css';
 import AccountSettings from './AccountSettings';
+import { useToast } from '@/app/components/ToastContext';
 
 // ── Image resize utility ──────────────────────────────────────────────────────
 async function resizeImage(file: File, maxWidth = 800, maxHeight = 800, quality = 0.8): Promise<Blob> {
@@ -205,7 +206,16 @@ export default function MyProfilePage() {
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [profile, setProfile] = useState<Profile>(emptyProfile);
   const [bookmarkedMotions, setBookmarkedMotions] = useState<Motion[]>([]);
-  const [message, setMessage] = useState('');
+  const { addToast } = useToast();
+  const setMessage = (msg: string) => {
+    if (!msg) return;
+    const isError = msg.toLowerCase().includes('gagal') || msg.toLowerCase().includes('error');
+    addToast({ 
+      title: isError ? 'Terjadi Kesalahan' : 'Pemberitahuan', 
+      message: msg, 
+      type: isError ? 'error' : 'success' 
+    });
+  };
   const [roleOptions, setRoleOptions] = useState<DiscordRole[]>(PREDEFINED_ROLES);
   const [activeTab, setActiveTab] = useState<'profile' | 'security'>('profile');
   const [competitionHistory, setCompetitionHistory] = useState<CompetitionHistoryRow[]>([]);
@@ -814,8 +824,6 @@ export default function MyProfilePage() {
               </div>
             )}
           </article>
-
-          {message && <div className={styles.notice}>{message}</div>}
 
           {/* ── Unified Debate History & Achievements ── */}
           <article className="panel" style={{ marginTop: '1.25rem' }}>

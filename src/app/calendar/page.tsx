@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { notifyApprovedMembers, notifyEbAdmins } from '@/lib/notifications';
+import { useUser } from '@/lib/UserContext';
+import { useToast } from '@/app/components/ToastContext';
 import styles from './Calendar.module.css';
 
 type WeeklySession = {
@@ -139,7 +141,12 @@ export default function CalendarPage() {
   const [userRole, setUserRole] = useState('member');
   const [weeklySessions, setWeeklySessions] = useState<WeeklySession[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
-  const [notice, setNotice] = useState('');
+  const { addToast } = useToast();
+  const setNotice = (msg: string) => {
+    if (!msg) return;
+    const isError = msg.toLowerCase().includes('gagal') || msg.toLowerCase().includes('error') || msg.toLowerCase().includes('wajib');
+    addToast({ title: isError ? 'Terjadi Kesalahan' : 'Pemberitahuan', message: msg, type: isError ? 'error' : 'success' });
+  };
   const [filter, setFilter] = useState<CalendarFilter>('all');
   const [showCreateCard, setShowCreateCard] = useState(false);
   const [eventDraft, setEventDraft] = useState(defaultEventDraft(new Date()));
@@ -378,12 +385,10 @@ export default function CalendarPage() {
           </div>
           <div className={styles.monthNav}>
             <button className="ghost-button" type="button" onClick={() => setSelectedMonth((current) => addMonth(current, -1))}>Bulan lalu</button>
-            <strong>{monthLabel}</strong>
+            <input type="month" value={selectedMonth} onChange={(e) => { if (e.target.value) setSelectedMonth(e.target.value); }} className="input" style={{ width: 'auto', fontWeight: 'bold' }} />
             <button className="ghost-button" type="button" onClick={() => setSelectedMonth((current) => addMonth(current, 1))}>Bulan depan</button>
           </div>
         </div>
-
-        {notice && <div className={styles.notice}>{notice}</div>}
 
         <div className={styles.toolbar}>
           {(['all', 'event', 'weekly'] as CalendarFilter[]).map((item) => (

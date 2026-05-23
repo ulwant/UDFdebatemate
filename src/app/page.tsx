@@ -14,6 +14,8 @@ type DashboardMetric = {
     scheduled_at: string;
     notes?: string | null;
   } | null;
+  agendaTimeline: any[];
+  recentAchievements: any[];
 };
 
 export default function Home() {
@@ -24,6 +26,8 @@ export default function Home() {
     motionCount: 0,
     achievementCount: 0,
     nextTraining: null,
+    recentAchievements: [],
+    agendaTimeline: [],
   });
   const [dashboardLoading, setDashboardLoading] = React.useState(true);
 
@@ -31,29 +35,53 @@ export default function Home() {
     async function loadDashboard() {
       const { data: { session } } = await supabase.auth.getSession();
       const nowIso = new Date().toISOString();
-      const [profilesResult, motionsResult, nextTrainingResult, attendanceResult] = await Promise.all([
-        supabase.from('profiles').select('id, achievements', { count: 'exact' }).eq('approval_status', 'approved'),
+      const [profilesResult, motionsResult, nextTrainingsResult, prevTrainingResult, attendanceResult, recentAchievementsResult] = await Promise.all([
+        supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('approval_status', 'approved'),
         supabase.from('motions').select('id', { count: 'exact', head: true }),
-        supabase.from('weekly_sessions').select('title, scheduled_at, notes').gte('scheduled_at', nowIso).order('scheduled_at', { ascending: true }).limit(1).maybeSingle(),
+        supabase.from('weekly_sessions').select('title, scheduled_at, notes').gte('scheduled_at', nowIso).order('scheduled_at', { ascending: true }).limit(2),
+        supabase.from('weekly_sessions').select('title, scheduled_at, notes').lt('scheduled_at', nowIso).order('scheduled_at', { ascending: false }).limit(1).maybeSingle(),
         session
           ? supabase.from('attendance_records').select('status', { count: 'exact' })
           : Promise.resolve({ data: [], count: 0 }),
+        supabase.from('competition_results')
+          .select(`
+            id,
+            achievement_name,
+            competition_teams (
+              competitions (
+                name,
+                competition_date
+              )
+            )
+          `, { count: 'exact' })
+          .eq('is_achievement', true)
+          .order('created_at', { ascending: false })
+          .limit(3),
       ]);
 
-      const profiles = profilesResult.data || [];
-      const achievementCount = profiles.reduce((total, profile) => {
-        const achievements = Array.isArray(profile.achievements) ? profile.achievements : [];
-        return total + achievements.length;
-      }, 0);
+      const activeMembers = profilesResult.count || 0;
+      const achievementCount = (recentAchievementsResult.count || 0);
+      const recentAchievements = recentAchievementsResult.data || [];
       const records = attendanceResult.data || [];
       const present = records.filter((record) => record.status === 'Present').length;
 
+      const nextTrainings = nextTrainingsResult.data || [];
+      const nextTrainingData = nextTrainings.length > 0 ? nextTrainings[0] : null;
+
+      const agendaTimeline = [
+        prevTrainingResult.data ? { ...prevTrainingResult.data, status: 'previous' } : null,
+        nextTrainings.length > 0 ? { ...nextTrainings[0], status: 'current' } : null,
+        nextTrainings.length > 1 ? { ...nextTrainings[1], status: 'next' } : null,
+      ].filter(Boolean);
+
       setMetrics({
         attendanceRate: records.length > 0 ? Math.round((present / records.length) * 100) : 0,
-        activeMembers: profilesResult.count || profiles.length,
+        activeMembers: activeMembers,
         motionCount: motionsResult.count || 0,
         achievementCount,
-        nextTraining: nextTrainingResult.data || null,
+        nextTraining: nextTrainingData,
+        recentAchievements,
+        agendaTimeline,
       });
       setDashboardLoading(false);
     }
@@ -126,17 +154,20 @@ export default function Home() {
             <h3>Upcoming Agenda</h3>
             <button className="ghost-button" type="button" onClick={() => goToLoginIfNeeded('/calendar')}>View all</button>
           </div>
-          <div className="agenda-list">
-            {metrics.nextTraining ? (
-              <div className="agenda-item">
-                <time>{new Date(metrics.nextTraining.scheduled_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</time>
-                <div>
-                  <strong>{metrics.nextTraining.title}</strong>
-                  <span>{metrics.nextTraining.notes || 'Weekly training terdekat'}</span>
+          <div className="agenda-timeline">
+            {metrics.agendaTimeline.length > 0 ? (
+              metrics.agendaTimeline.map((item, idx) => (
+                <div key={idx} className={`timeline-item ${item.status}`}>
+                  <div className="timeline-dot"></div>
+                  <div className="timeline-content">
+                    <span className="timeline-status">{item.status.toUpperCase()}</span>
+                    <strong>{item.title}</strong>
+                    <time>{new Date(item.scheduled_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</time>
+                  </div>
                 </div>
-              </div>
+              ))
             ) : (
-              <p style={{ color: 'var(--muted)' }}>Belum ada weekly training berikutnya.</p>
+              <p style={{ color: 'var(--muted)' }}>Belum ada agenda terdekat.</p>
             )}
           </div>
         </article>
@@ -147,9 +178,29 @@ export default function Home() {
             <button className="ghost-button" type="button" onClick={() => goToLoginIfNeeded('/achievements')}>Open base</button>
           </div>
           <div className="achievement-list">
-            <p style={{ color: 'var(--muted)' }}>
-              Achievement summary sekarang dihitung dari profil member. Detail lengkapnya bisa discan, difilter, dan diurutkan dari Achievement Base.
-            </p>
+            {metrics.recentAchievements.length > 0 ? (
+              <div style={{ display: 'grid', gap: '12px' }}>
+                {metrics.recentAchievements.map((ach) => {
+                  const compName = Array.isArray(ach.competition_teams?.competitions) 
+                    ? ach.competition_teams?.competitions[0]?.name 
+                    : ach.competition_teams?.competitions?.name;
+                  const compDate = Array.isArray(ach.competition_teams?.competitions) 
+                    ? ach.competition_teams?.competitions[0]?.competition_date 
+                    : ach.competition_teams?.competitions?.competition_date;
+                  return (
+                    <div key={ach.id} className="agenda-item">
+                      <time>{compDate ? new Date(compDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'short' }) : '-'}</time>
+                      <div>
+                        <strong>{ach.achievement_name}</strong>
+                        <span>{compName || 'Competition'}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p style={{ color: 'var(--muted)' }}>Belum ada achievement yang dicatat.</p>
+            )}
           </div>
         </article>
       </div>

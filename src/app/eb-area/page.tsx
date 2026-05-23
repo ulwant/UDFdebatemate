@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { notifyApprovedMembers, notifyManyUsers, notifyUser } from '@/lib/notifications';
+import { useUser } from '@/lib/UserContext';
+import { useToast } from '@/app/components/ToastContext';
 import styles from '../my-profile/MyProfile.module.css';
 
 const ATTENDANCE_STATUSES = [
@@ -29,6 +31,7 @@ type DiscordRole = {
 type Profile = {
   id?: string;
   user_id?: string;
+  email?: string;
   name: string;
   caption?: string;
   profile_picture_url?: string;
@@ -229,7 +232,12 @@ export default function EbAreaPage() {
   const [weeklySessions, setWeeklySessions] = useState<WeeklySession[]>([]);
   const [allProfiles, setAllProfiles] = useState<Profile[]>([]);
   const [roleOptions, setRoleOptions] = useState<DiscordRole[]>([]);
-  const [attendanceMessage, setAttendanceMessage] = useState('');
+  const { addToast } = useToast();
+  const setAttendanceMessage = (msg: string) => {
+    if (!msg) return;
+    const isError = msg.toLowerCase().includes('gagal') || msg.toLowerCase().includes('error') || msg.toLowerCase().includes('tidak ditemukan');
+    addToast({ title: isError ? 'Terjadi Kesalahan' : 'Pemberitahuan', message: msg, type: isError ? 'error' : 'success' });
+  };
   const [newWeeklyTitle, setNewWeeklyTitle] = useState('');
   const [newWeeklyDate, setNewWeeklyDate] = useState('');
   const [newWeeklyNotes, setNewWeeklyNotes] = useState('');
@@ -353,9 +361,12 @@ export default function EbAreaPage() {
         .order('scheduled_at', { ascending: true }),
       supabase
         .from('profiles')
-        .select('id, user_id, name, caption, profile_picture_url, avatar_initials, avatar_color, system_role, approval_status, batch, member_type, debating_experience, rejection_reason, discord_roles')
+        .select('id, user_id, email, name, caption, profile_picture_url, avatar_initials, avatar_color, system_role, approval_status, batch, member_type, debating_experience, rejection_reason, discord_roles')
         .order('name', { ascending: true }),
     ]);
+
+    if (weeklyResult.error) console.error('Error fetching weekly sessions:', weeklyResult.error.message);
+    if (profilesResult.error) console.error('Error fetching profiles:', profilesResult.error.message);
 
     const weeklySessionRows = (weeklyResult.data || []) as WeeklySession[];
     const profileRows = (profilesResult.data || []) as Profile[];
@@ -543,6 +554,7 @@ export default function EbAreaPage() {
       setAttendanceMessage(`Gagal mengubah system role: ${error.message}`);
       return;
     }
+
     if (targetProfile?.user_id) {
       await notifyUser({
         userId: targetProfile.user_id,
@@ -611,8 +623,8 @@ export default function EbAreaPage() {
     if (targetProfile?.user_id) {
       await notifyUser({
         userId: targetProfile.user_id,
-        title: 'Account Needs Revision',
-        message: `Profil kamu perlu direvisi. Catatan EB/Admin: ${reason}`,
+        title: 'Account Rejected',
+        message: `Pendaftaran kamu ditolak. Catatan EB/Admin: ${reason}. Akun akan dihapus dari database dalam 15 menit.`,
         link: '/my-profile',
         type: 'profile',
         priority: 'high',
@@ -1401,7 +1413,7 @@ export default function EbAreaPage() {
 
   const selectedRole = roleOptions.find(r => r.id === selectedRoleId);
   const membersWithSelectedRole = allProfiles.filter(p => p.discord_roles?.some(r => r.id === selectedRoleId || r.name === selectedRole?.name));
-  const pendingProfiles = allProfiles.filter((profile) => profile.approval_status !== 'approved');
+  const pendingProfiles = allProfiles.filter((profile) => profile.approval_status !== 'approved' && profile.approval_status !== 'rejected');
 
   return (
     <section className="section active-section" style={{ display: 'block' }}>
@@ -1420,8 +1432,6 @@ export default function EbAreaPage() {
           )}
         </div>
       </div>
-
-      {attendanceMessage && <div className={styles.notice}>{attendanceMessage}</div>}
 
       {activeAreaTab === 'registrations' && (
         <article className="panel" style={{ marginTop: '16px' }}>
@@ -1710,7 +1720,7 @@ export default function EbAreaPage() {
                         <div><strong>{p.name || 'Unnamed User'}</strong></div>
                       </div>
                     </td>
-                    <td>{p.user_id?.substring(0, 8)}...</td>
+                    <td>{p.email || p.user_id?.substring(0, 8) + '...'}</td>
                     <td>
                       <span className={`rank-badge`} style={{ 
                         background: p.system_role === 'admin' ? '#bf616a22' : p.system_role === 'eb' ? '#d0877022' : '#81a1c122',

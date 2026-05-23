@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
+import { useToast } from '@/app/components/ToastContext';
 import styles from './RoomTimer.module.css';
 
 type FormatType = 'AP' | 'BP';
@@ -139,12 +140,17 @@ export default function RoomTimerPage() {
   const [roomName, setRoomName] = useState('UDF Debate Room');
   const [format, setFormat] = useState<FormatType>('AP');
   const [speechMinutes, setSpeechMinutes] = useState(7);
-  const [speechSeconds, setSpeechSeconds] = useState(0);
+  const [speechSeconds, setSpeechSeconds] = useState(20);
   const [replyMinutes, setReplyMinutes] = useState(4);
-  const [replySeconds, setReplySeconds] = useState(0);
+  const [replySeconds, setReplySeconds] = useState(20);
   const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
-  const [notice, setNotice] = useState('');
+  const { addToast } = useToast();
+  const setNotice = (msg: string) => {
+    if (!msg) return;
+    const isError = msg.toLowerCase().includes('gagal') || msg.toLowerCase().includes('error') || msg.toLowerCase().includes('terminated');
+    addToast({ title: isError ? 'Terjadi Kesalahan' : 'Pemberitahuan', message: msg, type: isError ? 'error' : 'success' });
+  };
   const [now, setNow] = useState(nowMs());
   const [serverTimeOffset, setServerTimeOffset] = useState<number>(0);
   const [participantId, setParticipantId] = useState<string | null>(null);
@@ -840,8 +846,6 @@ export default function RoomTimerPage() {
               <button className={phase === 'create' ? styles.active : ''} onClick={() => { setPhase('create'); setPlayerSide('Host'); }} type="button">Create Lobby</button>
             </div>
 
-            {notice && <div className={styles.notice}>{notice}</div>}
-
             {phase === 'join' ? (
               <div className={styles.joinCard}>
                 <input value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="Game PIN" inputMode="numeric" />
@@ -865,7 +869,7 @@ export default function RoomTimerPage() {
                       <option value="Debater">Debater</option>
                     </select>
                   </label>
-                  <label>Format<select className="input" value={format} onChange={(event) => updateLocalConfig(event.target.value as FormatType, speechMinutes, speechSeconds, replyMinutes, replySeconds)}><option value="AP">Asian Parliamentary</option><option value="BP">British Parliamentary</option></select></label>
+                  <label className={styles.fullSpan}>Format<select className="input" value={format} onChange={(event) => updateLocalConfig(event.target.value as FormatType, speechMinutes, speechSeconds, replyMinutes, replySeconds)}><option value="AP">Asian Parliamentary</option><option value="BP">British Parliamentary</option></select></label>
                   <label>Speech min<input className="input" type="number" min="0" value={speechMinutes} onChange={(event) => updateLocalConfig(format, Number(event.target.value), speechSeconds, replyMinutes, replySeconds)} /></label>
                   <label>Speech sec<input className="input" type="number" min="0" max="59" value={speechSeconds} onChange={(event) => updateLocalConfig(format, speechMinutes, Number(event.target.value), replyMinutes, replySeconds)} /></label>
                   <label>Reply min<input className="input" type="number" min="0" value={replyMinutes} onChange={(event) => updateLocalConfig(format, speechMinutes, speechSeconds, Number(event.target.value), replySeconds)} /></label>
@@ -890,7 +894,6 @@ export default function RoomTimerPage() {
               <strong>{snapshot?.code}</strong>
             </div>
             <h2>{snapshot?.name}</h2>
-            {notice && <div className={styles.notice}>{notice}</div>}
             <div className={styles.lobbyActions}>
               {canControl && snapshot?.phase === 'lobby' && <button className={styles.darkButton} onClick={() => setLive(true)} type="button">Start Live</button>}
               {canControl && snapshot?.phase === 'live' && <button className={styles.darkButton} onClick={() => setLive(false)} type="button">Back to Lobby</button>}

@@ -230,9 +230,16 @@ export default function ProfileDirectory({ profiles }: { profiles: ProfileRow[] 
               <h3>{profile.name || 'Anonymous User'}</h3>
               <p>{profile.caption || profile.bio || 'Undip Debate Forum member'}</p>
               <div className={styles.previewTagRow}>
-                {getPreviewTags(profile).length > 0 ? getPreviewTags(profile).map((tag) => (
-                  <span key={tag}>{tag}</span>
-                )) : (
+                {profile.discord_roles && profile.discord_roles.length > 0 ? (
+                  profile.discord_roles
+                    .filter((role) => !/^UDF\d+/i.test(role.name) && !/^(EB|Admin)$/i.test(role.name))
+                    .slice(0, 3)
+                    .map((role, idx) => (
+                      <span key={role.name || idx} style={{ background: `${role.color}24`, color: role.color, border: `1px solid ${role.color}44` }}>
+                        {role.name}
+                      </span>
+                    ))
+                ) : (
                   <>
                     <span>{getUdfBatch(profile)}</span>
                     <span>{getSpeakerRole(profile)}</span>
@@ -277,12 +284,7 @@ export default function ProfileDirectory({ profiles }: { profiles: ProfileRow[] 
                   </div>
                 </div>
               </div>
-              <div className={styles.profileFacts}>
-                <span>{getUdfBatch(selectedProfile)}</span>
-                <span>{getSpeakerRole(selectedProfile)}</span>
-                <span>{selectedAchievements.length} achievements</span>
               </div>
-            </div>
 
             <div className={styles.detailContent}>
               <section>
