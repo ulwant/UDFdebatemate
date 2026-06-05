@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useUser } from '@/lib/UserContext';
 
 const PUBLIC_OR_ONBOARDING_ROUTES = ['/', '/login', '/my-profile'];
+const GUEST_ROUTES = ['/timer', '/presensi', '/calendar', '/my-profile'];
 
 export default function ApprovalGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -13,14 +14,21 @@ export default function ApprovalGate({ children }: { children: React.ReactNode }
 
   const canManageApp = profile?.system_role === 'admin' || profile?.system_role === 'eb';
   const isApproved = profile?.approval_status === 'approved' || canManageApp;
+  const isGuest = profile?.member_type === 'guest';
   const isAllowedRoute = PUBLIC_OR_ONBOARDING_ROUTES.some((route) => (
     route === '/' ? pathname === '/' : pathname.startsWith(route)
   ));
+  const isGuestRoute = GUEST_ROUTES.some((route) => pathname.startsWith(route));
 
   useEffect(() => {
+    if (loading || !profile) return;
+    if (isApproved && isGuest && !isGuestRoute) {
+      router.replace('/timer');
+      return;
+    }
     if (loading || !profile || isApproved || isAllowedRoute) return;
     router.replace('/my-profile');
-  }, [isAllowedRoute, isApproved, loading, profile, router]);
+  }, [isAllowedRoute, isApproved, isGuest, isGuestRoute, loading, profile, router]);
 
   if (!loading && profile && !isApproved && !isAllowedRoute) {
     return (

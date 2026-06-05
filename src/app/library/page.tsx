@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { notifyApprovedMembers } from '@/lib/notifications';
 import { MOTION_TYPES, PRIMARY_TOPICS, SECONDARY_TOPICS } from '@/lib/constants';
+import { useToast } from '@/app/components/ToastContext';
+import { motionDraftToPayload, submitMotionForReview } from '@/lib/data/motions';
 
 type SessionUser = { id: string };
 type AuthSession = { user: SessionUser } | null;
@@ -19,9 +21,26 @@ type Motion = {
   tab_url?: string;
 };
 type Bookmark = { motion_id: string };
+type MotionSubmission = {
+  id: string;
+  submitted_by: string;
+  draft: {
+    text?: string;
+    motion_type?: string;
+    primary_category?: string;
+    secondary_category?: string;
+    competition?: string;
+    year?: number | null;
+    tab_url?: string | null;
+  };
+  status: 'pending' | 'approved' | 'rejected';
+  review_note?: string | null;
+  created_at: string;
+};
 
 export default function LibraryPage() {
   const router = useRouter();
+  const { addToast } = useToast();
   const [motions, setMotions] = useState<Motion[]>([]);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<AuthSession>(null);
@@ -48,6 +67,12 @@ export default function LibraryPage() {
   const [bookmarkedMotions, setBookmarkedMotions] = useState<Set<string>>(new Set());
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [editingMotion, setEditingMotion] = useState<Motion | null>(null);
+  const [pendingSubmissions, setPendingSubmissions] = useState<MotionSubmission[]>([]);
+  const [visibleCount, setVisibleCount] = useState(15);
+
+  const notify = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    addToast({ title: type === 'error' ? 'Library Error' : type === 'success' ? 'Library Updated' : 'Motion Bank', message, type });
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -75,6 +100,24 @@ export default function LibraryPage() {
     setLoading(false);
   }
 
+  async function fetchMotionSubmissions() {
+    if (userRole === 'member') return;
+    const { data, error } = await supabase
+      .from('motion_submissions')
+      .select('id, submitted_by, draft, status, review_note, created_at')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      if (!error.message.toLowerCase().includes('does not exist')) {
+        notify(`Failed to load motion submissions: ${error.message}`, 'error');
+      }
+      return;
+    }
+
+    setPendingSubmissions((data || []) as MotionSubmission[]);
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession((data.session as AuthSession) || null);
@@ -91,13 +134,26 @@ export default function LibraryPage() {
     return () => window.clearTimeout(initialLoadTimer);
   }, [typeFilter]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void fetchMotionSubmissions();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [userRole]);
+
   // Client-side debounce for search text
   useEffect(() => {
+    setVisibleCount(15); // Reset pagination on search
     const handler = setTimeout(() => {
       void fetchMotions();
     }, 400);
     return () => clearTimeout(handler);
   }, [searchQuery]);
+
+  // Reset pagination on filter changes
+  useEffect(() => {
+    setVisibleCount(15);
+  }, [typeFilter, selectedTopics]);
 
   const toggleTopic = (topic: string) => {
     if (selectedTopics.includes(topic)) {
@@ -117,7 +173,7 @@ export default function LibraryPage() {
 
   const handleAddClick = () => {
     if (!session) {
-      alert("Please login to your account to add a new motion.");
+      notify('Please login to your account to add a new motion.', 'error');
       router.push('/login');
       return;
     }
@@ -127,7 +183,7 @@ export default function LibraryPage() {
 
   const handleEditClick = (motion: Motion) => {
     if (!session) {
-      alert("Please login to edit a motion.");
+      notify('Please login to edit a motion.', 'error');
       router.push('/login');
       return;
     }
@@ -149,7 +205,7 @@ export default function LibraryPage() {
 
   const toggleBookmark = async (motionId: string) => {
     if (!session) {
-      alert("Please login to bookmark motions.");
+      notify('Please login to bookmark motions.', 'error');
       router.push('/login');
       return;
     }
@@ -157,7 +213,7 @@ export default function LibraryPage() {
     if (isBookmarked) {
       const { error } = await supabase.from('bookmarks').delete().match({ user_id: session.user.id, motion_id: motionId });
       if (error) {
-        alert("Failed to remove bookmark: " + error.message + "\n\nMake sure you have run the supabase_bookmarks_update.sql script in your Supabase SQL Editor!");
+        notify(`Failed to remove bookmark: ${error.message}. Pastikan supabase_bookmarks_update.sql sudah dijalankan.`, 'error');
         return;
       }
       const newBookmarks = new Set(bookmarkedMotions);
@@ -166,7 +222,7 @@ export default function LibraryPage() {
     } else {
       const { error } = await supabase.from('bookmarks').insert({ user_id: session.user.id, motion_id: motionId });
       if (error) {
-        alert("Failed to add bookmark: " + error.message + "\n\nMake sure you have run the supabase_bookmarks_update.sql script in your Supabase SQL Editor!");
+        notify(`Failed to add bookmark: ${error.message}. Pastikan supabase_bookmarks_update.sql sudah dijalankan.`, 'error');
         return;
       }
       const newBookmarks = new Set(bookmarkedMotions);
@@ -177,41 +233,33 @@ export default function LibraryPage() {
 
   const copyMotionText = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert('Motion text copied to clipboard!');
+    notify('Motion text copied to clipboard.', 'success');
   };
 
   const reportMotion = () => {
-    alert('Thank you for reporting. Our admins will review this motion.');
+    notify('Thank you for reporting. Our admins will review this motion.', 'success');
   };
 
   const handleSaveMotion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMotion.text || !newMotion.motion_type) {
-      alert("Text and Motion Type are required!");
+      notify('Text and Motion Type are required.', 'error');
       return;
     }
     if (!session) {
-      alert("Please log in before saving a motion.");
+      notify('Please log in before saving a motion.', 'error');
       return;
     }
 
     setSaving(true);
-    const payload = {
-      text: newMotion.text,
-      motion_type: newMotion.motion_type,
-      primary_category: newMotion.primary_categories.join(', '),
-      secondary_category: newMotion.secondary_categories.join(', '),
-      competition: newMotion.competition,
-      year: newMotion.year ? parseInt(newMotion.year) : null,
-      tab_url: newMotion.tab_url || null
-    };
+    const payload = motionDraftToPayload(newMotion);
 
     try {
       if (editingMotion) {
         // Update existing motion
         const { error } = await supabase.from('motions').update(payload).eq('id', editingMotion.id);
         if (error) {
-          alert("Failed to update motion: " + error.message);
+          notify(`Failed to update motion: ${error.message}`, 'error');
         } else {
           await notifyApprovedMembers({
             title: 'Library Updated',
@@ -224,13 +272,25 @@ export default function LibraryPage() {
           setNewMotion({
             text: '', motion_type: '', primary_categories: [], secondary_categories: [], competition: '', year: new Date().getFullYear().toString(), tab_url: ''
           });
+          notify('Motion updated successfully.', 'success');
           fetchMotions(); // Refresh list
+        }
+      } else if (userRole === 'member') {
+        const { error } = await submitMotionForReview(session.user.id, newMotion);
+        if (error) {
+          notify(`Failed to submit motion for review: ${error.message}. Pastikan supabase_motion_submissions.sql sudah dijalankan.`, 'error');
+        } else {
+          notify('Motion submitted for EB/Admin review.', 'success');
+          setShowModal(false);
+          setNewMotion({
+            text: '', motion_type: '', primary_categories: [], secondary_categories: [], competition: '', year: new Date().getFullYear().toString(), tab_url: ''
+          });
         }
       } else {
         // Create new motion
         const { error } = await supabase.from('motions').insert([{ ...payload, created_by: session.user.id }]);
         if (error) {
-          alert("Failed to add motion: " + error.message);
+          notify(`Failed to add motion: ${error.message}`, 'error');
         } else {
           await notifyApprovedMembers({
             title: 'Library Updated',
@@ -242,6 +302,7 @@ export default function LibraryPage() {
           setNewMotion({
             text: '', motion_type: '', primary_categories: [], secondary_categories: [], competition: '', year: new Date().getFullYear().toString(), tab_url: ''
           });
+          notify('Motion submitted successfully.', 'success');
           fetchMotions(); // Refresh list
         }
       }
@@ -250,13 +311,63 @@ export default function LibraryPage() {
     }
   };
 
+  const deleteMotion = async (motion: Motion) => {
+    if (userRole === 'member') return;
+    if (!window.confirm('Hapus motion ini dari Motion Bank?')) return;
+    const { error } = await supabase.from('motions').delete().eq('id', motion.id);
+    if (error) {
+      notify(`Failed to delete motion: ${error.message}`, 'error');
+      return;
+    }
+    notify('Motion deleted.', 'success');
+    setActiveDropdown(null);
+    await fetchMotions();
+  };
+
+  async function reviewMotionSubmission(submission: MotionSubmission, nextStatus: 'approved' | 'rejected') {
+    if (nextStatus === 'approved') {
+      const { error: insertError } = await supabase.from('motions').insert({
+        text: submission.draft.text || '',
+        motion_type: submission.draft.motion_type || '',
+        primary_category: submission.draft.primary_category || '',
+        secondary_category: submission.draft.secondary_category || '',
+        competition: submission.draft.competition || '',
+        year: submission.draft.year || null,
+        tab_url: submission.draft.tab_url || null,
+        created_by: submission.submitted_by,
+      });
+
+      if (insertError) {
+        notify(`Failed to publish submission: ${insertError.message}`, 'error');
+        return;
+      }
+    }
+
+    const { error } = await supabase
+      .from('motion_submissions')
+      .update({
+        status: nextStatus,
+        reviewed_at: new Date().toISOString(),
+        review_note: nextStatus === 'approved' ? 'Approved into Motion Bank.' : 'Rejected by EB/Admin.',
+      })
+      .eq('id', submission.id);
+
+    if (error) {
+      notify(`Failed to update submission: ${error.message}`, 'error');
+      return;
+    }
+
+    notify(nextStatus === 'approved' ? 'Motion submission approved.' : 'Motion submission rejected.', 'success');
+    await Promise.all([fetchMotionSubmissions(), fetchMotions()]);
+  }
+
   return (
     <section id="library" className="section active-section" style={{ display: 'block', maxWidth: '1200px', margin: '0 auto' }}>
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h2>Motion Bank</h2>
-        {userRole !== 'member' && (
+        {session && (
           <button className="primary-button" onClick={handleAddClick} style={{ borderRadius: '6px', padding: '10px 16px', fontWeight: 600 }}>
             Submit Motion
           </button>
@@ -384,17 +495,57 @@ export default function LibraryPage() {
 
         {/* Right Side: Motions List */}
         <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
+          {userRole !== 'member' && pendingSubmissions.length > 0 && (
+            <article className="panel" style={{ display: 'grid', gap: 12 }}>
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Motion review</p>
+                  <h3>Pending member submissions</h3>
+                </div>
+                <span className="rank-badge">{pendingSubmissions.length} pending</span>
+              </div>
+              <div style={{ display: 'grid', gap: 10 }}>
+                {pendingSubmissions.map((submission) => (
+                  <div key={submission.id} className="library-card" style={{ padding: 14, background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: 8 }}>
+                    <strong>{submission.draft.text || 'Untitled motion'}</strong>
+                    <p style={{ color: 'var(--muted)', margin: '6px 0' }}>
+                      {submission.draft.motion_type || 'No type'} {submission.draft.competition ? `- ${submission.draft.competition}` : ''}
+                    </p>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button className="secondary-button" type="button" onClick={() => { void reviewMotionSubmission(submission, 'approved'); }}>Approve</button>
+                      <button className="danger-button" type="button" onClick={() => { if (window.confirm('Reject this motion submission?')) void reviewMotionSubmission(submission, 'rejected'); }}>Reject</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
             <span style={{ color: 'var(--muted)', fontSize: '0.95rem' }}>Showing {filteredMotions.length} motions</span>
           </div>
 
           {loading ? (
-            <p style={{ color: 'var(--muted)', padding: '20px', textAlign: 'center' }}>Loading motions...</p>
+            <div style={{ display: 'grid', gap: 12 }}>
+              {[0, 1, 2].map((item) => (
+                <div key={item} className="panel" style={{ display: 'grid', gap: 12 }}>
+                  <div style={{ width: '38%', height: 16, borderRadius: 8, background: '#eef1ef' }} />
+                  <div style={{ width: '100%', height: 20, borderRadius: 8, background: '#eef1ef' }} />
+                  <div style={{ width: '70%', height: 12, borderRadius: 999, background: '#eef1ef' }} />
+                </div>
+              ))}
+            </div>
           ) : filteredMotions.length === 0 ? (
-            <p style={{ color: 'var(--muted)', padding: '40px', textAlign: 'center', background: 'var(--panel)', borderRadius: '8px' }}>No motions found matching your criteria.</p>
+            <div style={{ padding: '60px 20px', textAlign: 'center', background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: '12px' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '16px' }}>📚</div>
+              <strong style={{ display: 'block', fontSize: '1.2rem', color: 'var(--ink)', marginBottom: '8px' }}>Wah, belum ada motion yang cocok</strong>
+              <span style={{ color: 'var(--muted)', display: 'block', maxWidth: '400px', margin: '0 auto' }}>
+                Coba ubah kata kunci pencarian atau bersihkan filter di samping untuk melihat koleksi lainnya.
+              </span>
+            </div>
           ) : (
-            filteredMotions.map((motion) => (
+            <>
+              {filteredMotions.slice(0, visibleCount).map((motion) => (
               <div key={motion.id} className="library-card" style={{ padding: '20px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
                 {/* Header Row */}
@@ -434,9 +585,14 @@ export default function LibraryPage() {
                             Copy Motion Text
                           </button>
                           {userRole !== 'member' && (
-                            <button type="button" onClick={() => handleEditClick(motion)} style={{ display: 'block', width: '100%', padding: '8px 12px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '0.9rem', color: 'var(--green)', borderTop: '1px solid var(--line)', marginTop: '4px', paddingTop: '8px' }}>
-                              Edit Motion
-                            </button>
+                            <>
+                              <button type="button" onClick={() => handleEditClick(motion)} style={{ display: 'block', width: '100%', padding: '8px 12px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '0.9rem', color: 'var(--green)', borderTop: '1px solid var(--line)', marginTop: '4px', paddingTop: '8px' }}>
+                                Edit Motion
+                              </button>
+                              <button type="button" onClick={() => { void deleteMotion(motion); }} style={{ display: 'block', width: '100%', padding: '8px 12px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '0.9rem', color: '#ef4444', borderTop: '1px solid var(--line)', marginTop: '4px', paddingTop: '8px' }}>
+                                Delete Motion
+                              </button>
+                            </>
                           )}
                           <button type="button" onClick={() => { reportMotion(); setActiveDropdown(null); }} style={{ display: 'block', width: '100%', padding: '8px 12px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '0.9rem', color: '#ef4444', borderTop: '1px solid var(--line)', marginTop: '4px', paddingTop: '8px' }}>
                             Report Error
@@ -480,7 +636,20 @@ export default function LibraryPage() {
                   <span style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Round 1 {motion.motion_type && `• ${motion.motion_type}`}</span>
                 </div>
               </div>
-            ))
+            ))}
+            
+            {visibleCount < filteredMotions.length && (
+              <div style={{ textAlign: 'center', marginTop: '16px', marginBottom: '32px' }}>
+                <button 
+                  onClick={() => setVisibleCount(prev => prev + 15)}
+                  className="secondary-button" 
+                  style={{ padding: '10px 24px', borderRadius: '999px', fontSize: '0.95rem', fontWeight: 600, background: 'white', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}
+                >
+                  Load More Motions
+                </button>
+              </div>
+            )}
+            </>
           )}
         </div>
       </div>
@@ -488,7 +657,7 @@ export default function LibraryPage() {
       {/* Add Motion Modal Overlay */}
       {showModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-          <div style={{ background: 'var(--panel)', width: '100%', maxWidth: '550px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', border: '1px solid var(--line)' }}>
+          <div style={{ background: 'var(--panel)', width: '100%', maxWidth: '550px', maxHeight: '90dvh', display: 'flex', flexDirection: 'column', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', border: '1px solid var(--line)' }}>
 
             <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -652,3 +821,4 @@ export default function LibraryPage() {
     </section>
   );
 }
+

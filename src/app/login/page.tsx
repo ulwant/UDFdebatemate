@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
 type AuthMode = 'login' | 'register';
+type RegisterType = 'udf' | 'guest';
 
 async function withTimeout<T>(promise: PromiseLike<T>, label: string, timeoutMs = 12000): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -34,8 +35,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [batch, setBatch] = useState('');
-  const [memberType, setMemberType] = useState('newbie');
-  const [debatingExperience, setDebatingExperience] = useState('');
+  const [birthdate, setBirthdate] = useState('');
+  const [username, setUsername] = useState('');
+  const [registerType, setRegisterType] = useState<RegisterType>('udf');
+  const [faculty, setFaculty] = useState('');
+  const [major, setMajor] = useState('');
+  const [delegationStatus, setDelegationStatus] = useState('non-delegasi');
   const [authLoading, setAuthLoading] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -69,9 +74,24 @@ export default function LoginPage() {
     e.preventDefault();
     const cleanedName = fullName.trim();
     const cleanedBatch = batch.trim();
+    const cleanedUsername = username.trim();
+    const cleanedFaculty = faculty.trim();
+    const cleanedMajor = major.trim();
 
     if (cleanedName.length < 2) {
       setMessage('Nama lengkap minimal 2 karakter.');
+      return;
+    }
+    if (registerType === 'udf' && !cleanedUsername) {
+      setMessage('Username wajib diisi untuk akun UDF.');
+      return;
+    }
+    if (!cleanedFaculty) {
+      setMessage('Fakultas wajib diisi.');
+      return;
+    }
+    if (!cleanedMajor) {
+      setMessage('Jurusan wajib diisi.');
       return;
     }
     if (password.length < 8) {
@@ -91,9 +111,13 @@ export default function LoginPage() {
             data: {
               name: cleanedName,
               batch: cleanedBatch,
-              member_type: memberType,
-              debating_experience: debatingExperience.trim(),
-              caption: `${memberType === 'newbie' ? 'Calon member' : 'Member'} UDF${cleanedBatch ? ` ${cleanedBatch}` : ''}`,
+              birthdate: registerType === 'udf' ? birthdate || null : null,
+              username: registerType === 'udf' ? cleanedUsername : null,
+              faculty: cleanedFaculty,
+              major: cleanedMajor,
+              delegation_status: registerType === 'guest' ? delegationStatus : null,
+              member_type: registerType === 'guest' ? 'guest' : 'newbie',
+              caption: registerType === 'guest' ? 'Guest Debate Mate' : `Calon member UDF${cleanedBatch ? ` ${cleanedBatch}` : ''}`,
             },
           },
         }),
@@ -109,28 +133,33 @@ export default function LoginPage() {
         await supabase.from('profiles').upsert({
           user_id: data.session.user.id,
           name: cleanedName,
-          caption: `${memberType === 'newbie' ? 'Calon member' : 'Member'} UDF${cleanedBatch ? ` ${cleanedBatch}` : ''}`,
+          caption: registerType === 'guest' ? 'Guest Debate Mate' : `Calon member UDF${cleanedBatch ? ` ${cleanedBatch}` : ''}`,
           bio: '',
           avatar_initials: initialsFromName(cleanedName),
           avatar_color: 'blue',
-          system_role: 'member',
-          approval_status: 'pending_approval',
+          system_role: registerType === 'guest' ? 'guest' : 'member',
+          approval_status: registerType === 'guest' ? 'approved' : 'pending_approval',
           batch: cleanedBatch || null,
-          member_type: memberType,
-          debating_experience: debatingExperience.trim() || null,
+          birthdate: registerType === 'udf' ? birthdate || null : null,
+          username: registerType === 'udf' ? cleanedUsername : null,
+          faculty: cleanedFaculty,
+          major: cleanedMajor,
+          delegation_status: registerType === 'guest' ? delegationStatus : null,
+          member_type: registerType === 'guest' ? 'guest' : 'newbie',
+          debating_experience: null,
           discord_roles: [],
           contact_links: {},
+          privacy_settings: {},
           achievements: [],
-          debating_history: [],
         }, { onConflict: 'user_id' });
 
-        setMessage('Akun berhasil dibuat. Profilmu masuk antrean approval EB/Admin.');
+        setMessage(registerType === 'guest' ? 'Akun guest berhasil dibuat.' : 'Akun berhasil dibuat. Profilmu masuk antrean approval EB/Admin.');
         router.push('/my-profile');
         router.refresh();
         return;
       }
 
-      setMessage('Akun berhasil dibuat. Cek email untuk verifikasi, lalu login. Profil akan masuk antrean approval EB/Admin.');
+      setMessage(registerType === 'guest' ? 'Akun guest berhasil dibuat. Cek email untuk verifikasi, lalu login.' : 'Akun berhasil dibuat. Cek email untuk verifikasi, lalu login. Profil akan masuk antrean approval EB/Admin.');
       setMode('login');
     } catch (error) {
       setMessage(`Daftar gagal: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -164,35 +193,50 @@ export default function LoginPage() {
         <form onSubmit={isRegister ? handleRegister : handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {isRegister && (
             <>
+              <div className="segmented" role="group" aria-label="Register type">
+                <button className={`segment ${registerType === 'udf' ? 'active' : ''}`} type="button" onClick={() => setRegisterType('udf')}>Akun UDF</button>
+                <button className={`segment ${registerType === 'guest' ? 'active' : ''}`} type="button" onClick={() => setRegisterType('guest')}>Guest</button>
+              </div>
               <div>
-                <label className="field-label" style={{ marginTop: 0 }}>Nama Lengkap</label>
+                <label className="field-label" style={{ marginTop: 0 }}>{registerType === 'guest' ? 'Nama' : 'Nama Lengkap'}</label>
                 <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label className="field-label" style={{ marginTop: 0 }}>Angkatan</label>
-                  <input className="input" placeholder="UDF25" value={batch} onChange={(e) => setBatch(e.target.value)} />
+                  <label className="field-label" style={{ marginTop: 0 }}>Batch</label>
+                  <input className="input" placeholder="2025" value={batch} onChange={(e) => setBatch(e.target.value)} />
+                </div>
+                {registerType === 'udf' ? (
+                  <div>
+                    <label className="field-label" style={{ marginTop: 0 }}>Birthdate</label>
+                    <input type="date" className="input" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} required />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="field-label" style={{ marginTop: 0 }}>Delegasi/non-delegasi</label>
+                    <select className="input" value={delegationStatus} onChange={(e) => setDelegationStatus(e.target.value)}>
+                      <option value="delegasi">Delegasi</option>
+                      <option value="non-delegasi">Non-delegasi</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label className="field-label" style={{ marginTop: 0 }}>Fakultas</label>
+                  <input className="input" value={faculty} onChange={(e) => setFaculty(e.target.value)} required />
                 </div>
                 <div>
-                  <label className="field-label" style={{ marginTop: 0 }}>Status</label>
-                  <select className="input" value={memberType} onChange={(e) => setMemberType(e.target.value)}>
-                    <option value="newbie">Newbie</option>
-                    <option value="member">Member</option>
-                    <option value="alumni">Alumni</option>
-                    <option value="guest">Guest</option>
-                  </select>
+                  <label className="field-label" style={{ marginTop: 0 }}>Jurusan</label>
+                  <input className="input" value={major} onChange={(e) => setMajor(e.target.value)} required />
                 </div>
               </div>
-              <div>
-                <label className="field-label" style={{ marginTop: 0 }}>Pengalaman Debat</label>
-                <textarea
-                  className="input"
-                  rows={3}
-                  placeholder="Opsional: lomba, adjudication, latihan, atau alasan join UDF"
-                  value={debatingExperience}
-                  onChange={(e) => setDebatingExperience(e.target.value)}
-                />
-              </div>
+              {registerType === 'udf' && (
+                <div>
+                  <label className="field-label" style={{ marginTop: 0 }}>Username</label>
+                  <input className="input" value={username} onChange={(e) => setUsername(e.target.value)} required />
+                </div>
+              )}
             </>
           )}
 
@@ -212,7 +256,7 @@ export default function LoginPage() {
 
         {isRegister && (
           <p style={{ color: 'var(--muted)', fontSize: '0.88rem', lineHeight: 1.5, marginTop: '16px' }}>
-            Akun baru akan masuk antrean approval EB/Admin. Nomor WhatsApp tidak diminta di form pendaftaran.
+            {registerType === 'guest' ? 'Akun guest bisa menggunakan QR presensi setelah login.' : 'Akun UDF baru akan masuk antrean approval EB/Admin. Pengalaman debat tidak diminta saat pendaftaran.'}
           </p>
         )}
       </article>

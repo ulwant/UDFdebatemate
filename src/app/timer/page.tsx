@@ -602,7 +602,7 @@ function TimerContent() {
                   <button className="primary-button" type="button" onClick={() => { void createRoom(); }}>Create Room</button>
                   <button className="secondary-button" type="button" onClick={() => { void joinRoom(); }}>Join Room</button>
                   <button className="secondary-button" type="button" onClick={() => { navigator.clipboard.writeText(roomCode); setCopyText('Copied'); setTimeout(() => setCopyText('Copy code'), 1200); }}>{copyText}</button>
-                  {isRoom && <button className="ghost-button" type="button" onClick={() => { void leaveRoom(); }}>Leave Room</button>}
+                  {isRoom && <button className="ghost-button" type="button" onClick={() => { if (window.confirm('Leave this timer room?')) void leaveRoom(); }}>Leave Room</button>}
                   {isRoom && <button className="ghost-button" type="button" onClick={() => window.open(`/timer?room=${roomCode}&display=1`, '_blank')}>Open Display Tab</button>}
                 </div>
                 {isRoom && (

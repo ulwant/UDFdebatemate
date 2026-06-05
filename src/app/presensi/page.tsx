@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
+import { useToast } from '@/app/components/ToastContext';
 
 type AuthSession = {
   user: {
@@ -41,6 +42,7 @@ type BarcodeDetectorConstructor = new (options?: { formats?: string[] }) => {
 
 export default function PresensiPage() {
   const router = useRouter();
+  const { addToast } = useToast();
   const [session, setSession] = useState<AuthSession | null>(null);
   const [userRole, setUserRole] = useState<string>('member');
   const [loading, setLoading] = useState(true);
@@ -51,12 +53,17 @@ export default function PresensiPage() {
   const [newSessionTitle, setNewSessionTitle] = useState('');
   const [weeklySessions, setWeeklySessions] = useState<WeeklySession[]>([]);
   const [selectedWeeklyId, setSelectedWeeklyId] = useState('');
+  const [qrDurationMinutes, setQrDurationMinutes] = useState(15);
   const [endingSession, setEndingSession] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const scanFrameRef = useRef<number | null>(null);
   const scannerStreamRef = useRef<MediaStream | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerMessage, setScannerMessage] = useState('');
+
+  const notify = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    addToast({ title: type === 'error' ? 'Presensi Error' : type === 'success' ? 'Presensi Updated' : 'Presensi', message, type });
+  };
 
   async function fetchActiveSession() {
     const { data } = await supabase
@@ -157,13 +164,14 @@ export default function PresensiPage() {
   }, [activeAttendanceSession, userRole]);
 
   const generateSession = async () => {
-    if (!newSessionTitle) return alert("Please enter a session title");
-    if (!session) return alert("Please log in before creating an attendance session.");
-    if (!selectedWeeklyId) return alert("Pilih weekly session terlebih dahulu");
+    if (!newSessionTitle) return notify('Please enter a session title.', 'error');
+    if (!session) return notify('Please log in before creating an attendance session.', 'error');
+    if (!selectedWeeklyId) return notify('Pilih weekly session terlebih dahulu.', 'error');
+    if (qrDurationMinutes < 3 || qrDurationMinutes > 180) return notify('Durasi QR harus di antara 3 sampai 180 menit.', 'error');
 
     const selectedWeekly = weeklySessions.find((item) => item.id === selectedWeeklyId);
-    if (!selectedWeekly) return alert("Weekly session tidak ditemukan");
-    if (selectedWeekly.is_locked) return alert("Weekly session ini sudah terkunci");
+    if (!selectedWeekly) return notify('Weekly session tidak ditemukan.', 'error');
+    if (selectedWeekly.is_locked) return notify('Weekly session ini sudah terkunci.', 'error');
 
     const { data: existingLinked } = await supabase
       .from('attendance_sessions')
@@ -171,11 +179,11 @@ export default function PresensiPage() {
       .eq('weekly_session_id', selectedWeeklyId)
       .maybeSingle();
     if (existingLinked) {
-      return alert("Weekly session ini sudah punya QR session.");
+      return notify('Weekly session ini sudah punya QR session.', 'error');
     }
 
     const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 15); // 15 min expiry
+    expiresAt.setMinutes(expiresAt.getMinutes() + qrDurationMinutes);
 
     const { data, error } = await supabase
       .from('attendance_sessions')
@@ -189,10 +197,11 @@ export default function PresensiPage() {
       .single();
 
     if (error) {
-      alert("Error: " + error.message + "\nMake sure you have run the supabase_rbac_presensi.sql script!");
+      notify(`Error: ${error.message}. Pastikan supabase_rbac_presensi.sql sudah dijalankan.`, 'error');
     } else if (data) {
       setActiveAttendanceSession(data);
       setNewSessionTitle('');
+      notify('QR session berhasil dibuat.', 'success');
       fetchWeeklySessions();
     }
   };
@@ -206,7 +215,7 @@ export default function PresensiPage() {
       .eq('id', activeAttendanceSession.id);
 
     if (error) {
-      alert(`Gagal end session: ${error.message}`);
+      notify(`Gagal end session: ${error.message}`, 'error');
       setEndingSession(false);
       return;
     }
@@ -215,6 +224,7 @@ export default function PresensiPage() {
     setAttendanceRecords([]);
     await fetchActiveSession();
     setEndingSession(false);
+    notify('QR session ended.', 'success');
   }
 
   function stopCameraScanner() {
@@ -372,7 +382,7 @@ export default function PresensiPage() {
               </div>
 
               <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
-                <button className="secondary-button" onClick={() => { navigator.clipboard.writeText(scanUrl); alert('Link copied! Open a new Incognito window and paste it to test as a Member.') }} style={{ fontSize: '0.8rem', padding: '4px 8px' }}>
+                <button className="secondary-button" onClick={() => { navigator.clipboard.writeText(scanUrl); notify('Link copied. Open a new Incognito window and paste it to test as a Member.', 'success'); }} style={{ fontSize: '0.8rem', padding: '4px 8px' }}>
                   Copy Link (For Testing)
                 </button>
                 <a href={scanUrl} target="_blank" className="secondary-button" style={{ fontSize: '0.8rem', padding: '4px 8px', textDecoration: 'none' }}>
@@ -383,7 +393,7 @@ export default function PresensiPage() {
               <p style={{ marginTop: '16px', color: 'var(--muted)', fontSize: '0.9rem' }}>
                 Expires at: {new Date(activeAttendanceSession.expires_at).toLocaleTimeString()}
               </p>
-              <button className="ghost-button" onClick={endSession} disabled={endingSession} style={{ marginTop: '16px' }}>
+              <button className="danger-button" onClick={endSession} disabled={endingSession} style={{ marginTop: '16px' }}>
                 {endingSession ? 'Ending...' : 'End Session'}
               </button>
             </div>
@@ -413,8 +423,18 @@ export default function PresensiPage() {
                 style={{ marginBottom: '16px' }}
               />
               <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginBottom: '16px', textAlign: 'left' }}>
-                QR dibuat per sesi training dengan expiry pendek (15 menit) untuk mengurangi titip absen.
+                QR dibuat per sesi training dengan expiry yang bisa disesuaikan untuk mengurangi titip absen.
               </p>
+              <label className="field-label" style={{ textAlign: 'left' }}>Durasi QR (menit)</label>
+              <input
+                className="input"
+                type="number"
+                min={3}
+                max={180}
+                value={qrDurationMinutes}
+                onChange={(event) => setQrDurationMinutes(Number(event.target.value))}
+                style={{ marginBottom: '16px' }}
+              />
               <button className="primary-button" onClick={generateSession} style={{ width: '100%' }}>Generate QR Session</button>
             </div>
           )}

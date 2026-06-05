@@ -23,6 +23,13 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "Debate Mate UDF",
   description: "Debate operations, all in one place.",
+  icons: {
+    icon: [
+      { url: "/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -36,6 +43,8 @@ export const metadata: Metadata = {
 import ThemeProvider from "@/app/components/ThemeProvider";
 
 import { ToastProvider } from "@/app/components/ToastContext";
+import ErrorBoundary from "@/app/components/ErrorBoundary";
+import BottomNav from "@/app/components/BottomNav";
 
 export default function RootLayout({
   children,
@@ -49,13 +58,16 @@ export default function RootLayout({
         <ThemeProvider>
           <ToastProvider>
             <UserProvider>
-              <div className="app-shell">
-                <Sidebar />
-                <main className="main">
-                  <Topbar />
-                  <ApprovalGate>{children}</ApprovalGate>
-                </main>
-              </div>
+              <ErrorBoundary>
+                <div className="app-shell">
+                  <Sidebar />
+                  <main className="main">
+                    <Topbar />
+                    <ApprovalGate>{children}</ApprovalGate>
+                  </main>
+                </div>
+                <BottomNav />
+              </ErrorBoundary>
             </UserProvider>
           </ToastProvider>
         </ThemeProvider>

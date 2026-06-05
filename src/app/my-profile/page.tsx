@@ -7,6 +7,7 @@ import { notifyCurrentUser, notifyEbAdmins } from '@/lib/notifications';
 import styles from './MyProfile.module.css';
 import AccountSettings from './AccountSettings';
 import { useToast } from '@/app/components/ToastContext';
+import { DEFAULT_PRIVACY_SETTINGS, PrivacySettings, roleBadgeStyle } from '@/lib/profileUtils';
 
 // ── Image resize utility ──────────────────────────────────────────────────────
 async function resizeImage(file: File, maxWidth = 800, maxHeight = 800, quality = 0.8): Promise<Blob> {
@@ -57,8 +58,10 @@ type Profile = {
   id?: string; user_id?: string; name: string; bio: string; caption: string;
   profile_picture_url: string; header_picture_url?: string; avatar_initials?: string;
   avatar_color: string; system_role?: string; approval_status?: string; batch?: string; member_type?: string; debating_experience?: string;
+  birthdate?: string | null; username?: string | null; faculty?: string | null; major?: string | null; delegation_status?: string | null;
   rejection_reason?: string; discord_roles: DiscordRole[];
-  contact_links: { whatsapp?: string; website?: string }; achievements: Achievement[]; debating_history: unknown[];
+  contact_links: { whatsapp?: string; instagram?: string; website?: string }; privacy_settings?: PrivacySettings;
+  achievements: Achievement[]; debating_history: unknown[];
 };
 type Motion = { id: string; competition?: string | null; year?: string | number | null; text: string; motion_type?: string | null; tab_url?: string | null };
 type BookmarkRow = { motions: Motion | Motion[] | null };
@@ -145,8 +148,27 @@ type ParticipantRecord = {
     }> | null;
   }>;
 };
+type CanonicalRecord = {
+  id: string;
+  achievement_name?: string | null;
+  documentation_url?: string | null;
+  is_achievement?: boolean | null;
+  competition_teams?: {
+    id?: string;
+    team_name?: string | null;
+    category?: string | null;
+    format_type?: string | null;
+    competitions?: { name?: string | null; competition_date?: string | null; tab_url?: string | null } | null | Array<{ name?: string | null; competition_date?: string | null; tab_url?: string | null }>;
+  } | null | Array<{
+    id?: string;
+    team_name?: string | null;
+    category?: string | null;
+    format_type?: string | null;
+    competitions?: { name?: string | null; competition_date?: string | null; tab_url?: string | null } | null | Array<{ name?: string | null; competition_date?: string | null; tab_url?: string | null }>;
+  }>;
+};
 
-const emptyProfile: Profile = { name: '', bio: '', caption: '', profile_picture_url: '', avatar_color: 'blue', discord_roles: [], contact_links: { whatsapp: '', website: '' }, achievements: [], debating_history: [] };
+const emptyProfile: Profile = { name: '', bio: '', caption: '', profile_picture_url: '', avatar_color: 'blue', discord_roles: [], contact_links: { whatsapp: '', instagram: '', website: '' }, privacy_settings: DEFAULT_PRIVACY_SETTINGS, achievements: [], debating_history: [] };
 const emptySubmissionDraft: CompetitionSubmissionDraft = {
   record_kind: 'history',
   competition_name: '',
@@ -203,6 +225,7 @@ export default function MyProfilePage() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingHeader, setUploadingHeader] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [profile, setProfile] = useState<Profile>(emptyProfile);
   const [bookmarkedMotions, setBookmarkedMotions] = useState<Motion[]>([]);
@@ -220,7 +243,7 @@ export default function MyProfilePage() {
   const [activeTab, setActiveTab] = useState<'profile' | 'security'>('profile');
   const [competitionHistory, setCompetitionHistory] = useState<CompetitionHistoryRow[]>([]);
   const [competitionSubmissions, setCompetitionSubmissions] = useState<CompetitionSubmission[]>([]);
-  const [canonicalRecords, setCanonicalRecords] = useState<any[]>([]);
+  const [canonicalRecords, setCanonicalRecords] = useState<CanonicalRecord[]>([]);
   const [allProfiles, setAllProfiles] = useState<{ id: string; name: string }[]>([]);
   const [showSubmissionForm, setShowSubmissionForm] = useState(false);
   const [editingSubmissionId, setEditingSubmissionId] = useState<string | null>(null);
@@ -232,11 +255,12 @@ export default function MyProfilePage() {
 
   const isEb = profile.system_role === 'eb' || profile.system_role === 'admin';
   const isApproved = profile.approval_status === 'approved' || isEb;
+  const isGuest = profile.member_type === 'guest';
 
   async function fetchProfile(uid: string) {
     const { data } = await supabase.from('profiles').select('*').eq('user_id', uid).single();
     if (data) {
-      setProfile({ ...emptyProfile, ...data, discord_roles: data.discord_roles || [], contact_links: data.contact_links || {}, achievements: data.achievements || [], debating_history: data.debating_history || [] });
+      setProfile({ ...emptyProfile, ...data, discord_roles: data.discord_roles || [], contact_links: { ...emptyProfile.contact_links, ...(data.contact_links || {}) }, privacy_settings: { ...DEFAULT_PRIVACY_SETTINGS, ...(data.privacy_settings || {}) }, achievements: data.achievements || [], debating_history: data.debating_history || [] });
       return data as Profile;
     }
     setEditMode(true);
@@ -372,7 +396,17 @@ export default function MyProfilePage() {
 
   async function handleAvatarUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    if (!file || !user || !file.type.startsWith('image/')) return;
+    if (!file || !user) return;
+    if (!file.type.startsWith('image/')) {
+      setMessage('Avatar harus berupa file gambar.');
+      event.target.value = '';
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setMessage('Ukuran avatar maksimal 2MB.');
+      event.target.value = '';
+      return;
+    }
     setUploadingAvatar(true);
     try {
       const blob = await resizeImage(file, 800, 800, 0.8);
@@ -389,6 +423,11 @@ export default function MyProfilePage() {
   async function handleHeaderUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file || !user || !file.type.startsWith('image/')) return;
+    if (file.size > 2 * 1024 * 1024) {
+      setMessage('Ukuran header maksimal 2MB.');
+      event.target.value = '';
+      return;
+    }
     setUploadingHeader(true);
     try {
       const blob = await resizeImage(file, 1200, 400, 0.85);
@@ -404,29 +443,65 @@ export default function MyProfilePage() {
 
   async function handleSave() {
     if (!user) return;
+    const cleanName = profile.name.trim();
+    const cleanUsername = (profile.username || '').trim();
+    if (!cleanName) {
+      setMessage('Nama wajib diisi.');
+      setEditMode(true);
+      return;
+    }
+    if (cleanUsername && /\s/.test(cleanUsername)) {
+      setMessage('Username tidak boleh mengandung spasi.');
+      setEditMode(true);
+      return;
+    }
     setSaving(true);
+    setSaveState('saving');
     const wasRejected = profile.approval_status === 'rejected';
     const payload = {
       user_id: user.id,
-      name: profile.name,
+      name: cleanName,
       bio: profile.bio,
       caption: profile.caption,
-      avatar_initials: getInitials(profile.name),
+      avatar_initials: getInitials(cleanName),
       avatar_color: profile.avatar_color,
       profile_picture_url: profile.profile_picture_url,
       header_picture_url: profile.header_picture_url,
       batch: profile.batch || null,
       member_type: profile.member_type || 'newbie',
-      debating_experience: profile.debating_experience || null,
+      debating_experience: null,
+      birthdate: profile.member_type === 'guest' ? null : profile.birthdate || null,
+      username: profile.member_type === 'guest' ? null : cleanUsername || null,
+      faculty: profile.faculty || null,
+      major: profile.major || null,
+      delegation_status: profile.member_type === 'guest' ? profile.delegation_status || null : null,
       approval_status: profile.approval_status === 'rejected' ? 'pending_approval' : (profile.approval_status || 'pending_approval'),
       rejection_reason: null,
-      discord_roles: profile.discord_roles,
-      contact_links: profile.contact_links,
-      achievements: profile.achievements,
-      debating_history: profile.debating_history
+      discord_roles: profile.member_type === 'guest' ? [] : profile.discord_roles,
+      contact_links: profile.member_type === 'guest' ? {} : profile.contact_links,
+      achievements: profile.member_type === 'guest' ? [] : profile.achievements
     };
-    if (profile.id) await supabase.from('profiles').update(payload).eq('id', profile.id);
-    else { const { data } = await supabase.from('profiles').insert([{ ...payload, system_role: 'member' }]).select().single(); if (data) setProfile({ ...profile, ...data }); }
+    if (profile.id) {
+      const { error: updateError } = await supabase.from('profiles').update(payload).eq('id', profile.id);
+      if (updateError) {
+        setMessage(`Error saving profile: ${updateError.message}`);
+        setSaving(false); setEditMode(true); setSaveState('idle');
+        return;
+      }
+      // Re-fetch to sync state with what was actually saved in DB
+      const { data: refreshed } = await supabase.from('profiles').select('*').eq('id', profile.id).single();
+      if (refreshed) {
+        setProfile({ ...emptyProfile, ...refreshed, discord_roles: refreshed.discord_roles || [], contact_links: { ...emptyProfile.contact_links, ...(refreshed.contact_links || {}) }, privacy_settings: { ...DEFAULT_PRIVACY_SETTINGS, ...(refreshed.privacy_settings || {}) }, achievements: refreshed.achievements || [], debating_history: refreshed.debating_history || [] });
+      }
+    } else {
+      const { data, error: insertError } = await supabase.from('profiles').insert([{ ...payload, system_role: 'member', privacy_settings: DEFAULT_PRIVACY_SETTINGS }]).select().single();
+      if (insertError) {
+        setMessage(`Error creating profile: ${insertError.message}`);
+        setSaving(false); setEditMode(true); setSaveState('idle');
+        return;
+      }
+      if (data) setProfile({ ...profile, ...data });
+    }
     if (wasRejected || !profile.id) {
       await notifyEbAdmins({
         title: wasRejected ? 'Profile Resubmitted' : 'Profile Needs Review',
@@ -437,7 +512,8 @@ export default function MyProfilePage() {
         actionRequired: true,
       });
     }
-    setSaving(false); setEditMode(false);
+    setSaving(false); setEditMode(false); setSaveState('saved');
+    setTimeout(() => setSaveState('idle'), 1400);
     setMessage(profile.approval_status === 'rejected' ? 'Profil dikirim ulang untuk approval EB/Admin.' : 'Profil tersimpan.');
   }
 
@@ -749,14 +825,17 @@ export default function MyProfilePage() {
                 {saving ? 'Saving...' : 'Save Profile'}
               </button>
             ) : (
-              <button className="secondary-button" onClick={() => setEditMode(true)}>Edit Profile</button>
+              <button className="secondary-button" onClick={() => { setSaveState('idle'); setEditMode(true); }}>Edit Profile</button>
             )}
+            {editMode && <span className={styles.editStatePill}>Editing mode</span>}
+            {saveState === 'saving' && <span className={styles.editStatePill}>Saving changes...</span>}
+            {saveState === 'saved' && <span className={styles.savedStatePill}>Profile saved</span>}
           </div>
 
           {/* Profile card */}
-          <article className={`${styles.linkedInCard} panel`}>
+          <article className={`${styles.linkedInCard} ${editMode ? styles.editingCard : saveState === 'saved' ? styles.savedCard : ''} panel`}>
             <div className={styles.cover} style={profile.header_picture_url ? { backgroundImage: `url(${profile.header_picture_url})` } : undefined}>
-              {editMode && (
+              {editMode && !isGuest && (
                 <label className={styles.editCoverBtn}>
                   {uploadingHeader ? 'Uploading...' : 'Change Cover'}
                   <input type="file" accept="image/*" onChange={handleHeaderUpload} disabled={uploadingHeader} />
@@ -770,40 +849,48 @@ export default function MyProfilePage() {
                 ) : (
                   <div className={styles.avatarFallback}>{profile.avatar_initials || getInitials(profile.name)}</div>
                 )}
+                {editMode && !isGuest && (
+                  <label className={styles.avatarOverlay}>
+                    {uploadingAvatar ? 'Uploading...' : 'Change Photo'}
+                    <input type="file" accept="image/*" onChange={handleAvatarUpload} disabled={uploadingAvatar} />
+                  </label>
+                )}
               </div>
               <div className={styles.identityBlock}>
                 <h1>{profile.name || 'Anonymous User'}</h1>
-                <p className={styles.caption}>{profile.caption || 'Debater at Undip Debate Forum'}</p>
-                <p className={styles.bio}>{profile.bio || 'No bio provided yet.'}</p>
+                <p className={styles.caption}>{isGuest ? 'Guest Debate Mate' : profile.caption || 'Debater at Undip Debate Forum'}</p>
+                {isGuest ? (
+                  <p className={styles.bio}>{[profile.faculty, profile.major, profile.delegation_status].filter(Boolean).join(' / ') || 'Guest account'}</p>
+                ) : (
+                  <p className={styles.bio}>{[profile.faculty, profile.major].filter(Boolean).join(' - ')}<br/>{profile.bio || 'No bio provided yet.'}</p>
+                )}
                 <div className={styles.roleRow}>
                   {profile.discord_roles?.length > 0
                     ? profile.discord_roles.map((role, i) => (
-                        <span key={`${role.name}-${i}`} className="rank-badge" style={{ background: `${role.color}22`, color: role.color, borderColor: `${role.color}44` }}>
+                        <span key={`${role.name}-${i}`} className="rank-badge" style={roleBadgeStyle(role.color)}>
                           {role.name}
                         </span>
                       ))
-                    : <span className="rank-badge">Member</span>}
+                    : <span className="rank-badge">{isGuest ? 'Guest' : 'Member'}</span>}
                 </div>
               </div>
             </div>
             {editMode && (
               <div className={styles.editGrid}>
-                <label className={styles.uploadBox}>
-                  <span>Upload Profile Picture</span>
-                  <strong>{uploadingAvatar ? 'Uploading...' : 'Choose image'}</strong>
-                  <input type="file" accept="image/*" onChange={handleAvatarUpload} disabled={uploadingAvatar} />
-                </label>
                 <label>Full Name<input className="input" value={profile.name || ''} onChange={(e) => setProfile({ ...profile, name: e.target.value })} /></label>
-                <label>Caption<input className="input" value={profile.caption || ''} onChange={(e) => setProfile({ ...profile, caption: e.target.value })} /></label>
-                <label>Angkatan<input className="input" placeholder="UDF25" value={profile.batch || ''} onChange={(e) => setProfile({ ...profile, batch: e.target.value })} /></label>
-                <label>Status<select className="input" value={profile.member_type || 'newbie'} onChange={(e) => setProfile({ ...profile, member_type: e.target.value })}><option value="newbie">Newbie</option><option value="member">Member</option><option value="alumni">Alumni</option><option value="guest">Guest</option></select></label>
-                <label className={styles.fullSpan}>Full Bio<textarea className="input" value={profile.bio || ''} onChange={(e) => setProfile({ ...profile, bio: e.target.value })} rows={3} /></label>
-                <label className={styles.fullSpan}>Debating Experience<textarea className="input" value={profile.debating_experience || ''} onChange={(e) => setProfile({ ...profile, debating_experience: e.target.value })} rows={3} /></label>
-                <div className={styles.fullSpan}>
+                {!isGuest && <label>Username<input className="input" value={profile.username || ''} onChange={(e) => setProfile({ ...profile, username: e.target.value })} /></label>}
+                {!isGuest && <label>Caption<input className="input" value={profile.caption || ''} onChange={(e) => setProfile({ ...profile, caption: e.target.value })} /></label>}
+                <label>Batch<input className="input" placeholder="2025" value={profile.batch || ''} onChange={(e) => setProfile({ ...profile, batch: e.target.value })} /></label>
+                {!isGuest && <label>Birthdate<input type="date" className="input" value={profile.birthdate || ''} onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })} /></label>}
+                <label>Fakultas<input className="input" value={profile.faculty || ''} onChange={(e) => setProfile({ ...profile, faculty: e.target.value })} /></label>
+                <label>Jurusan<input className="input" value={profile.major || ''} onChange={(e) => setProfile({ ...profile, major: e.target.value })} /></label>
+                {isGuest && <label>Delegasi/non-delegasi<select className="input" value={profile.delegation_status || 'non-delegasi'} onChange={(e) => setProfile({ ...profile, delegation_status: e.target.value })}><option value="delegasi">Delegasi</option><option value="non-delegasi">Non-delegasi</option></select></label>}
+                {!isGuest && <label className={styles.fullSpan}>Full Bio<textarea className="input" value={profile.bio || ''} onChange={(e) => setProfile({ ...profile, bio: e.target.value })} rows={3} /></label>}
+                {!isGuest && <div className={styles.fullSpan}>
                   <label>Discord Roles</label>
                   <div className={styles.roleEditor}>
                     {profile.discord_roles?.map((role, i) => (
-                      <span key={`${role.name}-${i}`} className="rank-badge" style={{ background: `${role.color}22`, color: role.color, borderColor: `${role.color}44` }}>
+                      <span key={`${role.name}-${i}`} className="rank-badge" style={roleBadgeStyle(role.color)}>
                         {role.name}
                         <button onClick={() => removeRole(i)} type="button" aria-label={`Remove ${role.name}`}>×</button>
                       </span>
@@ -818,14 +905,18 @@ export default function MyProfilePage() {
                       }).map((r) => <option key={r.name} value={r.name}>{r.name}</option>)}
                     </select>
                   </div>
-                </div>
-                <label>WhatsApp<input className="input" value={profile.contact_links?.whatsapp || ''} onChange={(e) => setProfile({ ...profile, contact_links: { ...profile.contact_links, whatsapp: e.target.value } })} /></label>
-                <label>Website<input className="input" value={profile.contact_links?.website || ''} onChange={(e) => setProfile({ ...profile, contact_links: { ...profile.contact_links, website: e.target.value } })} /></label>
+                </div>}
+                {!isGuest && <label>WhatsApp<input className="input" value={profile.contact_links?.whatsapp || ''} onChange={(e) => setProfile({ ...profile, contact_links: { ...profile.contact_links, whatsapp: e.target.value } })} /></label>}
+                {!isGuest && <label>Instagram<input className="input" placeholder="@username atau link" value={profile.contact_links?.instagram || ''} onChange={(e) => setProfile({ ...profile, contact_links: { ...profile.contact_links, instagram: e.target.value } })} /></label>}
+                {!isGuest && <label>Website<input className="input" value={profile.contact_links?.website || ''} onChange={(e) => setProfile({ ...profile, contact_links: { ...profile.contact_links, website: e.target.value } })} /></label>}
+                {/* Privacy Settings moved to AccountSettings */}
               </div>
             )}
           </article>
 
           {/* ── Unified Debate History & Achievements ── */}
+          {!isGuest && (
+            <>
           <article className="panel" style={{ marginTop: '1.25rem' }}>
             <div className="panel-header">
               <div>
@@ -846,7 +937,7 @@ export default function MyProfilePage() {
               <form className={styles.recordEditor} onSubmit={submitCompetitionRecord} style={{ marginBottom: '1rem' }}>
                 <div className={styles.recordForm}>
                   <label>Tipe Record
-                    <select className="input" value={submissionDraft.record_kind} onChange={(e) => updateSubmissionDraft('record_kind', e.target.value as any)}>
+                    <select className="input" value={submissionDraft.record_kind} onChange={(e) => updateSubmissionDraft('record_kind', e.target.value as CompetitionSubmissionDraft['record_kind'])}>
                       <option value="history">📋 Debate History (kompetisi baru)</option>
                       <option value="achievement">🏆 Achievement Claim (prestasi baru)</option>
                       <option value="join_request">🔗 Join Existing UDF Record (gabung record teman)</option>
@@ -1099,23 +1190,7 @@ export default function MyProfilePage() {
                     </>
                 </div>
               ))}
-
-              {/* Legacy profile achievements */}
-              {profile.achievements?.length > 0 && profile.achievements.map((a, i) => (
-                <div key={a.id || `legacy-${i}`} className={styles.achievementCard} style={{ borderLeft: '3px solid var(--muted)' }}>
-                  <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: 'var(--paper)', color: 'var(--muted)', border: '1px solid var(--line)' }}>Legacy</span>
-                  </div>
-                  <strong>{a.name}</strong>
-                  <span>{a.date}</span>
-                  <p>{a.competition}</p>
-                  <small>{a.type} / {a.category} / {a.participant}</small>
-                  {a.documentation && <a href={a.documentation} target="_blank" rel="noreferrer">View Documentation</a>}
-                  {a.tab_url && <a href={a.tab_url} target="_blank" rel="noreferrer">View TAB</a>}
-                </div>
-              ))}
-
-              {competitionHistory.length === 0 && !(profile.achievements?.length > 0) && (
+              {competitionHistory.length === 0 && (
                 <p className={styles.emptyState}>Belum ada debate history atau achievement. Klik &quot;+ Submit Record&quot; untuk mulai!</p>
               )}
             </div>
@@ -1141,6 +1216,8 @@ export default function MyProfilePage() {
               </div>
             )}
           </article>
+            </>
+          )}
         </div>
       )}
 

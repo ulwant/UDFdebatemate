@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import styles from './ProfileDirectory.module.css';
+import { instagramUrl, normalizeUrl, resolvePrivacy, PrivacySettings } from '@/lib/profileUtils';
 
 type DiscordRole = { name: string; color: string };
 type Achievement = {
@@ -58,7 +59,11 @@ export type ProfileRow = {
   discord_roles?: DiscordRole[];
   achievements?: Achievement[];
   debating_history?: unknown[];
-  contact_links?: { whatsapp?: string; website?: string };
+  contact_links?: { whatsapp?: string; instagram?: string; website?: string };
+  privacy_settings?: PrivacySettings;
+  birthdate?: string;
+  batch?: string;
+  member_type?: string;
   speaker_role?: string;
   tags?: string[];
 };
@@ -108,14 +113,6 @@ function normalizeHistory(history: unknown[]) {
     .filter(Boolean) as Array<{ title: string; description: string; date: string; tab_url: string }>;
 }
 
-function normalizeUrl(value?: string) {
-  if (!value) return '';
-  const cleaned = value.trim();
-  if (!cleaned) return '';
-  if (/^https?:\/\//i.test(cleaned)) return cleaned;
-  return `https://${cleaned}`;
-}
-
 function firstItem<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] || null;
   return value || null;
@@ -139,8 +136,10 @@ export default function ProfileDirectory({ profiles }: { profiles: ProfileRow[] 
   const selectedAchievements = selectedProfile?.achievements || [];
   const selectedHistory = useMemo(() => normalizeHistory(selectedProfile?.debating_history || []), [selectedProfile]);
   const selectedContacts = selectedProfile?.contact_links || {};
-  const selectedWhatsapp = whatsappUrl(selectedContacts.whatsapp);
-  const selectedWebsite = normalizeUrl(selectedContacts.website);
+  const selectedPrivacy = resolvePrivacy(selectedProfile?.privacy_settings);
+  const selectedWhatsapp = selectedPrivacy.whatsapp ? whatsappUrl(selectedContacts.whatsapp) : '';
+  const selectedInstagram = selectedPrivacy.instagram ? instagramUrl(selectedContacts.instagram) : '';
+  const selectedWebsite = selectedPrivacy.website ? normalizeUrl(selectedContacts.website) : '';
 
   function openProfile(profile: ProfileRow) {
     setCanonicalHistory([]);
@@ -211,7 +210,7 @@ export default function ProfileDirectory({ profiles }: { profiles: ProfileRow[] 
   return (
     <>
       <div className={styles.directoryGrid}>
-        {profiles.length > 0 ? profiles.map((profile) => (
+        {profiles.filter((profile) => profile.member_type !== 'guest').length > 0 ? profiles.filter((profile) => profile.member_type !== 'guest').map((profile) => (
           <button key={profile.id} className={styles.profilePreview} type="button" onClick={() => openProfile(profile)}>
             <div className={styles.previewBody}>
               <div className={styles.previewHeader} style={profile.header_picture_url ? {
@@ -228,7 +227,7 @@ export default function ProfileDirectory({ profiles }: { profiles: ProfileRow[] 
                 </div>
               </div>
               <h3>{profile.name || 'Anonymous User'}</h3>
-              <p>{profile.caption || profile.bio || 'Undip Debate Forum member'}</p>
+              <p>{profile.caption || (resolvePrivacy(profile.privacy_settings).bio ? profile.bio : '') || 'Undip Debate Forum member'}</p>
               <div className={styles.previewTagRow}>
                 {profile.discord_roles && profile.discord_roles.length > 0 ? (
                   profile.discord_roles
@@ -276,7 +275,7 @@ export default function ProfileDirectory({ profiles }: { profiles: ProfileRow[] 
                 <div className={styles.heroInfo}>
                   <h2>{selectedProfile.name || 'Anonymous User'}</h2>
                   <p className={styles.heroCaption}>{selectedProfile.caption || 'Undip Debate Forum member'}</p>
-                  <p className={styles.heroBio}>{selectedProfile.bio || 'No bio provided yet.'}</p>
+                  <p className={styles.heroBio}>{selectedPrivacy.bio ? selectedProfile.bio || 'No bio provided yet.' : 'Bio hidden by privacy settings.'}</p>
                   <div className={styles.roleStrip}>
                     {selectedRoles.length > 0 ? selectedRoles.map((role) => (
                       <span key={role.name} style={{ background: `${role.color}24`, color: role.color }}>{role.name}</span>
@@ -289,7 +288,9 @@ export default function ProfileDirectory({ profiles }: { profiles: ProfileRow[] 
             <div className={styles.detailContent}>
               <section>
                 <h3>About</h3>
-                <p>{selectedProfile.bio || 'No bio provided yet.'}</p>
+                <p>{selectedPrivacy.bio ? selectedProfile.bio || 'No bio provided yet.' : 'Hidden by privacy settings.'}</p>
+                {selectedPrivacy.batch && selectedProfile.batch && <p>Batch: {selectedProfile.batch}</p>}
+                {selectedPrivacy.birthdate && selectedProfile.birthdate && <p>Birthdate: {selectedProfile.birthdate}</p>}
               </section>
 
               <section>
@@ -299,9 +300,10 @@ export default function ProfileDirectory({ profiles }: { profiles: ProfileRow[] 
 
               <section>
                 <h3>Contact Information</h3>
-                {selectedWhatsapp || selectedWebsite ? (
+                {selectedWhatsapp || selectedInstagram || selectedWebsite ? (
                   <div className={styles.contactLinks}>
                     {selectedWhatsapp && <a href={selectedWhatsapp} target="_blank" rel="noreferrer">WhatsApp</a>}
+                    {selectedInstagram && <a href={selectedInstagram} target="_blank" rel="noreferrer">Instagram</a>}
                     {selectedWebsite && <a href={selectedWebsite} target="_blank" rel="noreferrer">Website</a>}
                   </div>
                 ) : (
@@ -346,35 +348,6 @@ export default function ProfileDirectory({ profiles }: { profiles: ProfileRow[] 
                   </div>
                 ) : (
                   <p>No canonical achievements listed yet.</p>
-                )}
-              </section>
-
-              <section>
-                <h3>Legacy Debate Records</h3>
-                {selectedAchievements.length > 0 || selectedHistory.length > 0 ? (
-                  <div className={styles.timelineList}>
-                    {selectedAchievements.map((achievement, index) => (
-                      <div key={achievement.id || index} className={styles.timelineItem}>
-                        <strong>{achievement.name || 'Achievement'}</strong>
-                        <span>{achievement.competition || 'Competition'} {achievement.date && `- ${achievement.date}`}</span>
-                        <p>{achievement.type || 'Debate'} / {achievement.category || 'Open'} / {achievement.participant || 'Participant'}</p>
-                        <div className={styles.linkRow}>
-                          {achievement.documentation && <a href={normalizeUrl(achievement.documentation)} target="_blank" rel="noreferrer">View Documentation</a>}
-                          {achievement.tab_url && <a href={normalizeUrl(achievement.tab_url)} target="_blank" rel="noreferrer">View TAB</a>}
-                        </div>
-                      </div>
-                    ))}
-                    {selectedHistory.map((record, index) => (
-                      <div key={`${record.title}-${index}`} className={styles.timelineItem}>
-                        <strong>{record.title}</strong>
-                        {record.date && <span>{record.date}</span>}
-                        {record.description && <p>{record.description}</p>}
-                        {record.tab_url && <a href={normalizeUrl(record.tab_url)} target="_blank" rel="noreferrer">View TAB</a>}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p>No debate records listed yet.</p>
                 )}
               </section>
             </div>

@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { useToast } from '@/app/components/ToastContext';
 import styles from './AchievementBase.module.css';
 
 type LegacyAchievement = {
@@ -164,6 +165,7 @@ function legacyToRows(profiles: LegacyProfileRow[]): AchievementRow[] {
 }
 
 export default function AchievementBasePage() {
+  const { addToast } = useToast();
   const [rows, setRows] = useState<AchievementRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -172,6 +174,8 @@ export default function AchievementBasePage() {
   const [yearFilter, setYearFilter] = useState('all');
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [notice, setNotice] = useState('');
 
   // EB/Admin Direct CRUD States
@@ -203,6 +207,8 @@ export default function AchievementBasePage() {
   const [showTeammateDropdown, setShowTeammateDropdown] = useState(false);
 
   const isEbOrAdmin = currentUserRole === 'eb' || currentUserRole === 'admin';
+  const notifyError = (message: string) => addToast({ title: 'Achievement Error', message, type: 'error' });
+  const notifySuccess = (message: string) => addToast({ title: 'Achievement Base', message, type: 'success' });
 
   async function fetchAchievements() {
     setLoading(true);
@@ -280,8 +286,12 @@ export default function AchievementBasePage() {
         }
       }
     }
-    void loadUser();
-    void fetchAchievements();
+    const loadTimer = window.setTimeout(() => { void loadUser(); }, 0);
+    const achievementsTimer = window.setTimeout(() => { void fetchAchievements(); }, 0);
+    return () => {
+      window.clearTimeout(loadTimer);
+      window.clearTimeout(achievementsTimer);
+    };
   }, []);
 
   useEffect(() => {
@@ -315,7 +325,7 @@ export default function AchievementBasePage() {
   function handleStartEdit(rowId: string) {
     const resultObj = rawCanonicalRecords.find(r => r.id === rowId);
     if (!resultObj) {
-      alert('Error: Record not found.');
+      notifyError('Record not found.');
       return;
     }
 
@@ -323,7 +333,7 @@ export default function AchievementBasePage() {
     const compObj = teamObj ? firstItem(teamObj.competitions) : null;
 
     if (!teamObj || !compObj) {
-      alert('Error: Team/Competition record details not found.');
+      notifyError('Team/Competition record details not found.');
       return;
     }
 
@@ -362,7 +372,7 @@ export default function AchievementBasePage() {
     const resultObj = rawCanonicalRecords.find(r => r.id === rowId);
     const teamObj = resultObj ? firstItem(resultObj.competition_teams) : null;
     if (!teamObj) {
-      alert('Error: Team record not found for deletion.');
+      notifyError('Team record not found for deletion.');
       return;
     }
 
@@ -373,9 +383,10 @@ export default function AchievementBasePage() {
       .eq('id', teamObj.id);
 
     if (error) {
-      alert(`Failed to delete record: ${error.message}`);
+      notifyError(`Failed to delete record: ${error.message}`);
     } else {
       setNotice('Record successfully deleted.');
+      notifySuccess('Record successfully deleted.');
       await fetchAchievements();
     }
     setLoading(false);
@@ -384,11 +395,11 @@ export default function AchievementBasePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!formCompetitionName.trim() || !formTeamName.trim()) {
-      alert('Competition Name and Team Name are required.');
+      notifyError('Competition Name and Team Name are required.');
       return;
     }
     if (formIsAchievement && !formAchievementName.trim()) {
-      alert('Achievement Name is required if this is an achievement.');
+      notifyError('Achievement Name is required if this is an achievement.');
       return;
     }
 
@@ -402,7 +413,7 @@ export default function AchievementBasePage() {
         const compObj = teamObj ? firstItem(teamObj.competitions) : null;
 
         if (!teamObj || !compObj) {
-          alert('Error: Original record components not found.');
+          notifyError('Original record components not found.');
           setSavingRecord(false);
           return;
         }
@@ -584,9 +595,10 @@ export default function AchievementBasePage() {
 
       setShowFormModal(false);
       setNotice(editingResultId ? 'Record successfully updated.' : 'Record successfully added.');
+      notifySuccess(editingResultId ? 'Record successfully updated.' : 'Record successfully added.');
       await fetchAchievements();
-    } catch (err: any) {
-      alert(`Database write error: ${err.message || err}`);
+    } catch (err: unknown) {
+      notifyError(`Database write error: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setSavingRecord(false);
     }
@@ -595,6 +607,15 @@ export default function AchievementBasePage() {
   const typeOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.type).filter(Boolean))).sort(), [rows]);
   const categoryOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.category).filter(Boolean))).sort(), [rows]);
   const yearOptions = useMemo(() => Array.from(new Set(rows.map((row) => getYear(row.date)))).sort((a, b) => b.localeCompare(a)), [rows]);
+  const yearlyStats = useMemo(() => {
+    const counts = new Map<string, number>();
+    rows.forEach((row) => counts.set(getYear(row.date), (counts.get(getYear(row.date)) || 0) + 1));
+    return Array.from(counts.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-6)
+      .map(([year, count]) => ({ year, count }));
+  }, [rows]);
+  const maxYearlyCount = Math.max(1, ...yearlyStats.map((item) => item.count));
 
   const visibleRows = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -633,6 +654,14 @@ export default function AchievementBasePage() {
     setSortDirection(nextKey === 'date' ? 'desc' : 'asc');
   }
 
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [query, typeFilter, categoryFilter, yearFilter, sortKey, sortDirection]);
+
+  const totalPages = Math.ceil(visibleRows.length / ITEMS_PER_PAGE);
+  const paginatedRows = visibleRows.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
   return (
     <section className={`section active-section ${styles.shell}`} style={{ display: 'grid' }}>
       <div className={styles.header}>
@@ -654,6 +683,26 @@ export default function AchievementBasePage() {
       </div>
 
       {notice && <div className="panel" style={{ color: notice.includes('Gagal') || notice.includes('error') ? '#bf616a' : 'var(--muted)', fontWeight: 800 }}>{notice}</div>}
+
+      <div className={styles.statsPanel}>
+        <div>
+          <p className="eyebrow">Achievement trend</p>
+          <h3>Records by year</h3>
+        </div>
+        <div className={styles.barChart} aria-label="Achievement records by year">
+          {yearlyStats.length === 0 ? (
+            <p className={styles.empty}>Belum ada data statistik.</p>
+          ) : (
+            yearlyStats.map((item) => (
+              <div key={item.year} className={styles.barColumn}>
+                <span>{item.count}</span>
+                <div style={{ height: `${Math.max(18, (item.count / maxYearlyCount) * 96)}px` }} />
+                <small>{item.year}</small>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
 
       <div className={styles.toolbar}>
         <input
@@ -718,7 +767,7 @@ export default function AchievementBasePage() {
               </tr>
             </thead>
             <tbody>
-              {!loading && visibleRows.map((row) => (
+              {!loading && paginatedRows.map((row) => (
                 <tr key={row.rowId}>
                   <td>
                     <div className={styles.nameCell}>
@@ -755,7 +804,7 @@ export default function AchievementBasePage() {
                         {row.source === 'canonical' ? (
                           <>
                             <button className="secondary-button" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={() => handleStartEdit(row.rowId)}>✏️ Edit</button>
-                            <button className="secondary-button" style={{ padding: '4px 8px', fontSize: '0.8rem', borderColor: '#bf616a', color: '#bf616a' }} onClick={() => handleDelete(row.rowId)}>❌ Delete</button>
+                            <button className="danger-button" style={{ padding: '4px 8px', fontSize: '0.8rem', minHeight: 30 }} onClick={() => handleDelete(row.rowId)}>Delete</button>
                           </>
                         ) : (
                           <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Legacy Record</span>
@@ -769,7 +818,76 @@ export default function AchievementBasePage() {
           </table>
         </div>
         {loading && <div className={styles.empty}>Loading achievement records...</div>}
-        {!loading && visibleRows.length === 0 && <div className={styles.empty}>No achievements found.</div>}
+        {!loading && visibleRows.length === 0 && (
+          <div style={{ padding: '60px 20px', textAlign: 'center', background: 'white' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '16px' }}>🏆</div>
+            <strong style={{ display: 'block', fontSize: '1.2rem', color: 'var(--ink)', marginBottom: '8px' }}>Tidak Ada Record Pencapaian</strong>
+            <span style={{ color: 'var(--muted)', display: 'block', maxWidth: '400px', margin: '0 auto' }}>
+              Belum ada data prestasi yang cocok dengan pencarian atau filter Anda saat ini.
+            </span>
+          </div>
+        )}
+        
+        {/* Pagination Controls */}
+        {!loading && totalPages > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderTop: '1px solid var(--line)' }}>
+            <span style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>
+              Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, visibleRows.length)} of {visibleRows.length} entries
+            </span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                disabled={currentPage === 1}
+                className="secondary-button"
+                style={{ padding: '6px 12px', minHeight: 'auto', opacity: currentPage === 1 ? 0.5 : 1 }}
+              >
+                Previous
+              </button>
+              
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                  .map((p, i, arr) => {
+                    // Add ellipsis if gap > 1
+                    const showEllipsis = i > 0 && p - arr[i-1] > 1;
+                    return (
+                      <React.Fragment key={p}>
+                        {showEllipsis && <span style={{ display: 'flex', alignItems: 'center', padding: '0 4px', color: 'var(--muted)' }}>...</span>}
+                        <button
+                          onClick={() => setCurrentPage(p)}
+                          style={{
+                            background: currentPage === p ? 'var(--green)' : 'transparent',
+                            color: currentPage === p ? 'white' : 'var(--ink)',
+                            border: `1px solid ${currentPage === p ? 'var(--green)' : 'var(--line)'}`,
+                            borderRadius: '6px',
+                            width: '32px',
+                            height: '32px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.9rem',
+                            fontWeight: currentPage === p ? 700 : 500,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {p}
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+              </div>
+
+              <button 
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                disabled={currentPage === totalPages}
+                className="secondary-button"
+                style={{ padding: '6px 12px', minHeight: 'auto', opacity: currentPage === totalPages ? 0.5 : 1 }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </article>
 
       {showFormModal && (

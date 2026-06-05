@@ -3,25 +3,24 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { useUser } from '@/lib/UserContext';
+import { useToast } from '@/app/components/ToastContext';
+import DashboardSkeleton from '@/app/components/DashboardSkeleton';
+import { getDashboardMetrics, type DashboardMetric, type AchievementItem, type AgendaItem } from '@/lib/api/dashboard';
 
-type DashboardMetric = {
-  attendanceRate: number;
-  activeMembers: number;
-  motionCount: number;
-  achievementCount: number;
-  nextTraining?: {
-    title: string;
-    scheduled_at: string;
-    notes?: string | null;
-  } | null;
-  agendaTimeline: any[];
-  recentAchievements: any[];
-};
+function firstItem<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] || null;
+  return value || null;
+}
 
 export default function Home() {
   const router = useRouter();
+  const { profile } = useUser();
+  const { addToast } = useToast();
   const [metrics, setMetrics] = React.useState<DashboardMetric>({
     attendanceRate: 0,
+    attendancePresent: 0,
+    attendanceTotal: 0,
     activeMembers: 0,
     motionCount: 0,
     achievementCount: 0,
@@ -33,61 +32,32 @@ export default function Home() {
 
   React.useEffect(() => {
     async function loadDashboard() {
-      const { data: { session } } = await supabase.auth.getSession();
-      const nowIso = new Date().toISOString();
-      const [profilesResult, motionsResult, nextTrainingsResult, prevTrainingResult, attendanceResult, recentAchievementsResult] = await Promise.all([
-        supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('approval_status', 'approved'),
-        supabase.from('motions').select('id', { count: 'exact', head: true }),
-        supabase.from('weekly_sessions').select('title, scheduled_at, notes').gte('scheduled_at', nowIso).order('scheduled_at', { ascending: true }).limit(2),
-        supabase.from('weekly_sessions').select('title, scheduled_at, notes').lt('scheduled_at', nowIso).order('scheduled_at', { ascending: false }).limit(1).maybeSingle(),
-        session
-          ? supabase.from('attendance_records').select('status', { count: 'exact' })
-          : Promise.resolve({ data: [], count: 0 }),
-        supabase.from('competition_results')
-          .select(`
-            id,
-            achievement_name,
-            competition_teams (
-              competitions (
-                name,
-                competition_date
-              )
-            )
-          `, { count: 'exact' })
-          .eq('is_achievement', true)
-          .order('created_at', { ascending: false })
-          .limit(3),
-      ]);
-
-      const activeMembers = profilesResult.count || 0;
-      const achievementCount = (recentAchievementsResult.count || 0);
-      const recentAchievements = recentAchievementsResult.data || [];
-      const records = attendanceResult.data || [];
-      const present = records.filter((record) => record.status === 'Present').length;
-
-      const nextTrainings = nextTrainingsResult.data || [];
-      const nextTrainingData = nextTrainings.length > 0 ? nextTrainings[0] : null;
-
-      const agendaTimeline = [
-        prevTrainingResult.data ? { ...prevTrainingResult.data, status: 'previous' } : null,
-        nextTrainings.length > 0 ? { ...nextTrainings[0], status: 'current' } : null,
-        nextTrainings.length > 1 ? { ...nextTrainings[1], status: 'next' } : null,
-      ].filter(Boolean);
-
-      setMetrics({
-        attendanceRate: records.length > 0 ? Math.round((present / records.length) * 100) : 0,
-        activeMembers: activeMembers,
-        motionCount: motionsResult.count || 0,
-        achievementCount,
-        nextTraining: nextTrainingData,
-        recentAchievements,
-        agendaTimeline,
-      });
-      setDashboardLoading(false);
+      try {
+        const { data, error } = await getDashboardMetrics();
+        if (error) {
+          addToast({
+            title: 'Gagal Memuat Dashboard',
+            message: error,
+            type: 'error',
+          });
+          return;
+        }
+        if (data) {
+          setMetrics(data);
+        }
+      } catch (err) {
+        addToast({
+          title: 'Error',
+          message: 'Terjadi kesalahan tidak terduga saat memuat data.',
+          type: 'error',
+        });
+      } finally {
+        setDashboardLoading(false);
+      }
     }
 
     void loadDashboard();
-  }, []);
+  }, [addToast]);
 
   async function goToLoginIfNeeded(path: string) {
     const { data: { session } } = await supabase.auth.getSession();
@@ -98,14 +68,17 @@ export default function Home() {
     ? new Date(metrics.nextTraining.scheduled_at).toLocaleString('id-ID', { weekday: 'short', hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })
     : 'Belum terjadwal';
 
-  const metricDisplay = dashboardLoading
-    ? { attendanceRate: '...', activeMembers: '...', motionCount: '...', achievementCount: '...' }
-    : {
-        attendanceRate: `${metrics.attendanceRate}%`,
-        activeMembers: String(metrics.activeMembers),
-        motionCount: String(metrics.motionCount),
-        achievementCount: String(metrics.achievementCount),
-      };
+  const metricDisplay = {
+    attendanceRate: `${metrics.attendanceRate}%`,
+    activeMembers: String(metrics.activeMembers),
+    motionCount: String(metrics.motionCount),
+    achievementCount: String(metrics.achievementCount),
+  };
+  const isOperator = profile?.system_role === 'eb' || profile?.system_role === 'admin';
+
+  if (dashboardLoading) {
+    return <DashboardSkeleton />;
+  }
 
   return (
     <section id="dashboard" className="section active-section" style={{ display: 'block' }}>
@@ -129,7 +102,7 @@ export default function Home() {
         <article className="metric-card">
           <span>Attendance Rate</span>
           <strong>{metricDisplay.attendanceRate}</strong>
-          <p>Present records average</p>
+          <p>{dashboardLoading ? 'Calculating sessions' : `${metrics.attendancePresent} hadir dari ${metrics.attendanceTotal} expected attendance`}</p>
         </article>
         <article className="metric-card">
           <span>Active Members</span>
@@ -147,6 +120,8 @@ export default function Home() {
           <p>Competition records</p>
         </article>
       </div>
+
+
 
       <div className="two-column">
         <article className="panel">
@@ -167,7 +142,10 @@ export default function Home() {
                 </div>
               ))
             ) : (
-              <p style={{ color: 'var(--muted)' }}>Belum ada agenda terdekat.</p>
+              <div style={{ color: 'var(--muted)', display: 'grid', gap: 8 }}>
+                <strong>Belum ada agenda terdekat.</strong>
+                <span>Agenda akan muncul setelah EB/Admin menambahkan weekly training atau event kalender.</span>
+              </div>
             )}
           </div>
         </article>
@@ -181,12 +159,10 @@ export default function Home() {
             {metrics.recentAchievements.length > 0 ? (
               <div style={{ display: 'grid', gap: '12px' }}>
                 {metrics.recentAchievements.map((ach) => {
-                  const compName = Array.isArray(ach.competition_teams?.competitions) 
-                    ? ach.competition_teams?.competitions[0]?.name 
-                    : ach.competition_teams?.competitions?.name;
-                  const compDate = Array.isArray(ach.competition_teams?.competitions) 
-                    ? ach.competition_teams?.competitions[0]?.competition_date 
-                    : ach.competition_teams?.competitions?.competition_date;
+                  const team = firstItem(ach.competition_teams);
+                  const competition = firstItem(team?.competitions);
+                  const compName = competition?.name;
+                  const compDate = competition?.competition_date;
                   return (
                     <div key={ach.id} className="agenda-item">
                       <time>{compDate ? new Date(compDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'short' }) : '-'}</time>
@@ -199,7 +175,11 @@ export default function Home() {
                 })}
               </div>
             ) : (
-              <p style={{ color: 'var(--muted)' }}>Belum ada achievement yang dicatat.</p>
+              <div style={{ padding: '40px 20px', textAlign: 'center', background: '#fbfcfb', border: '1px dashed rgba(23, 91, 69, 0.2)', borderRadius: '10px' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '12px', opacity: 0.8 }}>🏆</div>
+                <strong style={{ display: 'block', fontSize: '1.05rem', color: 'var(--ink)', marginBottom: '6px' }}>Belum Ada Achievement</strong>
+                <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.9rem' }}>Tambahkan record dari Achievement Base.</span>
+              </div>
             )}
           </div>
         </article>

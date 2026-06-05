@@ -4,9 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { notifyApprovedMembers, notifyManyUsers, notifyUser } from '@/lib/notifications';
-import { useUser } from '@/lib/UserContext';
 import { useToast } from '@/app/components/ToastContext';
 import styles from '../my-profile/MyProfile.module.css';
+import { hexToRgb, rgbToHex, roleBadgeStyle, solidRoleStyle } from '@/lib/profileUtils';
+import EbTabs from './components/EbTabs';
+import SetupChecklist from './components/SetupChecklist';
+import type { EbAreaTab } from './types';
 
 const ATTENDANCE_STATUSES = [
   { value: 'Present', label: 'Hadir' },
@@ -41,6 +44,10 @@ type Profile = {
   approval_status?: string;
   batch?: string | null;
   member_type?: string | null;
+  faculty?: string | null;
+  delegation_status?: string | null;
+  birthdate?: string | null;
+  username?: string | null;
   debating_experience?: string | null;
   rejection_reason?: string | null;
   discord_roles?: DiscordRole[];
@@ -221,6 +228,18 @@ function escapeHtml(value: string | number | null | undefined) {
     .replace(/"/g, '&quot;');
 }
 
+function isUdfProfile(profile: Profile) {
+  if (profile.member_type === 'guest') return false;
+  if (/^UDF\d+/i.test(profile.batch || '')) return true;
+  return Boolean(profile.discord_roles?.some((role) => /^UDF\d+/i.test(role.name)));
+}
+
+function attendanceGroupLabel(group: 'udf' | 'non_udf' | 'guest') {
+  if (group === 'udf') return 'UDF';
+  if (group === 'guest') return 'Guest';
+  return 'Non-UDF';
+}
+
 export default function EbAreaPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -245,9 +264,10 @@ export default function EbAreaPage() {
   const [weeklyDraft, setWeeklyDraft] = useState<WeeklyDraft>({ title: '', scheduled_at: '', notes: '' });
   const [selectedMemberHistoryId, setSelectedMemberHistoryId] = useState('');
   const [attendanceViewMode, setAttendanceViewMode] = useState<'matrix' | 'history'>('matrix');
+  const [attendanceAudience, setAttendanceAudience] = useState<'udf' | 'non_udf' | 'guest'>('udf');
   
   // EB Area Navigation Tabs
-  const [activeAreaTab, setActiveAreaTab] = useState<'attendance' | 'registrations' | 'competitionReview' | 'roles' | 'authority'>('attendance');
+  const [activeAreaTab, setActiveAreaTab] = useState<EbAreaTab>('attendance');
   const [rejectionReasons, setRejectionReasons] = useState<Record<string, string>>({});
   const [competitionSubmissions, setCompetitionSubmissions] = useState<CompetitionSubmission[]>([]);
   const [competitionOptions, setCompetitionOptions] = useState<CompetitionOption[]>([]);
@@ -361,7 +381,7 @@ export default function EbAreaPage() {
         .order('scheduled_at', { ascending: true }),
       supabase
         .from('profiles')
-        .select('id, user_id, email, name, caption, profile_picture_url, avatar_initials, avatar_color, system_role, approval_status, batch, member_type, debating_experience, rejection_reason, discord_roles')
+        .select('id, user_id, email, name, caption, profile_picture_url, avatar_initials, avatar_color, system_role, approval_status, batch, member_type, faculty, delegation_status, birthdate, username, debating_experience, rejection_reason, discord_roles')
         .order('name', { ascending: true }),
     ]);
 
@@ -428,6 +448,16 @@ export default function EbAreaPage() {
     setEditingRoleName(role.name);
     setEditingRoleColor(role.color);
     setRoleEditTab('display');
+  }
+
+  function updateRoleRgb(channel: 'r' | 'g' | 'b', value: string) {
+    const rgb = hexToRgb(editingRoleColor);
+    const nextValue = Math.max(0, Math.min(255, Number(value) || 0));
+    setEditingRoleColor(rgbToHex(
+      channel === 'r' ? nextValue : rgb.r,
+      channel === 'g' ? nextValue : rgb.g,
+      channel === 'b' ? nextValue : rgb.b,
+    ));
   }
 
   async function saveRoleDisplay() {
@@ -548,6 +578,8 @@ export default function EbAreaPage() {
       setAttendanceMessage('Hanya Admin yang dapat mengubah system role.');
       return;
     }
+    if (!window.confirm(`Apakah Anda yakin ingin mengubah system role user ini menjadi ${newRole}?`)) return;
+    
     const targetProfile = allProfiles.find((profile) => profile.id === profileId);
     const { error } = await supabase.from('profiles').update({ system_role: newRole }).eq('id', profileId);
     if (error) {
@@ -568,7 +600,31 @@ export default function EbAreaPage() {
     await fetchAttendance(); // refresh profiles
   }
 
+  async function deleteUserByAdmin(profileId: string) {
+    if (!isAdmin) {
+      setAttendanceMessage('Hanya Admin yang dapat menghapus user.');
+      return;
+    }
+    const targetProfile = allProfiles.find((profile) => profile.id === profileId);
+    if (!targetProfile?.user_id) return;
+    
+    if (!window.confirm(`PERINGATAN: Apakah Anda yakin ingin menghapus akun ${targetProfile.name} SECARA PERMANEN dari database?`)) return;
+
+    setAttendanceMessage('Menghapus user...');
+    
+    const { error } = await supabase.rpc('delete_user_by_admin', { target_uid: targetProfile.user_id });
+    
+    if (error) {
+      setAttendanceMessage(`Gagal menghapus user: ${error.message}`);
+      return;
+    }
+    
+    setAttendanceMessage('User berhasil dihapus.');
+    await fetchAttendance();
+  }
+
   async function approveProfile(profileId: string) {
+    if (!window.confirm('Approve profil ini dan beri akses penuh ke Debate Mate?')) return;
     const targetProfile = allProfiles.find((profile) => profile.id === profileId);
     const { error } = await supabase
       .from('profiles')
@@ -1352,6 +1408,12 @@ export default function EbAreaPage() {
     return map;
   }, [attendanceRecords]);
 
+  const attendanceProfiles = useMemo(() => {
+    if (attendanceAudience === 'guest') return allProfiles.filter((profile) => profile.member_type === 'guest');
+    if (attendanceAudience === 'udf') return allProfiles.filter(isUdfProfile);
+    return allProfiles.filter((profile) => profile.member_type !== 'guest' && !isUdfProfile(profile));
+  }, [allProfiles, attendanceAudience]);
+
   const attendanceSessionByWeeklyId = useMemo(() => {
     const map = new Map<string, AttendanceSession>();
     attendanceSessions.forEach((session) => { if (session.weekly_session_id) map.set(session.weekly_session_id, session); });
@@ -1359,15 +1421,21 @@ export default function EbAreaPage() {
   }, [attendanceSessions]);
 
   const attendanceSummary = useMemo(() => {
-    const present = attendanceRecords.filter((record) => record.status === 'Present').length;
-    const excused = attendanceRecords.filter((record) => record.status === 'Excused').length;
-    const absent = attendanceRecords.filter((record) => record.status === 'Absent').length;
-    const total = Math.max(allProfiles.length * weeklySessions.length, attendanceRecords.length);
+    const audienceUserIds = new Set(attendanceProfiles.map((profile) => profile.user_id).filter(Boolean));
+    const scopedRecords = attendanceRecords.filter((record) => audienceUserIds.has(record.user_id));
+    
+    const now = new Date();
+    const completedWeeklySessionsCount = weeklySessions.filter(s => new Date(s.scheduled_at) < now).length;
+    
+    const present = scopedRecords.filter((record) => record.status === 'Present').length;
+    const excused = scopedRecords.filter((record) => record.status === 'Excused').length;
+    const absent = scopedRecords.filter((record) => record.status === 'Absent').length;
+    const total = Math.max(attendanceProfiles.length * completedWeeklySessionsCount, scopedRecords.length);
     const rate = total > 0 ? Math.round((present / total) * 100) : 0;
     return { present, excused, absent, total, rate };
-  }, [allProfiles.length, attendanceRecords, weeklySessions.length]);
+  }, [attendanceProfiles, attendanceRecords, weeklySessions]);
 
-  const selectedHistoryMember = allProfiles.find((profile) => profile.id === selectedMemberHistoryId) || allProfiles[0];
+  const selectedHistoryMember = attendanceProfiles.find((profile) => profile.id === selectedMemberHistoryId) || attendanceProfiles[0];
   const selectedHistoryMemberId = selectedHistoryMember?.user_id || '';
 
   function getAttendanceValue(memberUserId: string | undefined, weekly: WeeklySession) {
@@ -1377,7 +1445,7 @@ export default function EbAreaPage() {
   }
 
   function buildAttendanceRows() {
-    return allProfiles.map((member) => [
+    return attendanceProfiles.map((member) => [
       member.name || 'Unnamed Member',
       ...(weeklySessions.map((weekly) => statusLabel(getAttendanceValue(member.user_id, weekly)))),
     ]);
@@ -1409,7 +1477,19 @@ export default function EbAreaPage() {
     downloadFile(`udf-attendance-${selectedMonth}.xls`, html, 'application/vnd.ms-excel;charset=utf-8');
   }
 
-  if (loading) return <div style={{ padding: '2rem' }}>Loading...</div>;
+  if (loading) {
+    return (
+      <section className="section active-section" style={{ display: 'block' }}>
+        <article className="panel" style={{ display: 'grid', gap: 14 }}>
+          <div style={{ width: 90, height: 12, borderRadius: 999, background: 'var(--green-soft)' }} />
+          <div style={{ width: '45%', height: 28, borderRadius: 8, background: '#eef1ef' }} />
+          <div className={styles.statsGrid}>
+            {[0, 1, 2, 3].map((item) => <div key={item} style={{ height: 96, borderRadius: 8, background: '#fbfcfb', border: '1px solid var(--line)' }} />)}
+          </div>
+        </article>
+      </section>
+    );
+  }
 
   const selectedRole = roleOptions.find(r => r.id === selectedRoleId);
   const membersWithSelectedRole = allProfiles.filter(p => p.discord_roles?.some(r => r.id === selectedRoleId || r.name === selectedRole?.name));
@@ -1422,15 +1502,13 @@ export default function EbAreaPage() {
           <p className="eyebrow">EB Area</p>
           <h2>Operations Dashboard</h2>
         </div>
-        <div className="segmented" role="group">
-          <button className={`segment ${activeAreaTab === 'attendance' ? 'active' : ''}`} onClick={() => setActiveAreaTab('attendance')}>Attendance</button>
-          <button className={`segment ${activeAreaTab === 'registrations' ? 'active' : ''}`} onClick={() => setActiveAreaTab('registrations')}>Registrations ({pendingProfiles.length})</button>
-          <button className={`segment ${activeAreaTab === 'competitionReview' ? 'active' : ''}`} onClick={() => setActiveAreaTab('competitionReview')}>Competition Review ({competitionSubmissions.filter((item) => item.status === 'pending').length})</button>
-          <button className={`segment ${activeAreaTab === 'roles' ? 'active' : ''}`} onClick={() => setActiveAreaTab('roles')}>Role Management</button>
-          {isAdmin && (
-            <button className={`segment ${activeAreaTab === 'authority' ? 'active' : ''}`} onClick={() => setActiveAreaTab('authority')}>User Authority</button>
-          )}
-        </div>
+        <EbTabs
+          activeTab={activeAreaTab}
+          isAdmin={isAdmin}
+          pendingProfilesCount={pendingProfiles.length}
+          pendingCompetitionCount={competitionSubmissions.filter((item) => item.status === 'pending').length}
+          onChange={setActiveAreaTab}
+        />
       </div>
 
       {activeAreaTab === 'registrations' && (
@@ -1447,8 +1525,8 @@ export default function EbAreaPage() {
                 <tr>
                   <th>Applicant</th>
                   <th>Status</th>
-                  <th>Batch / Type</th>
-                  <th>Experience</th>
+                  <th>Batch / Username</th>
+                  <th>Birthdate</th>
                   <th>Decision</th>
                 </tr>
               </thead>
@@ -1468,10 +1546,10 @@ export default function EbAreaPage() {
                       <span className="rank-badge">{profile.approval_status || 'pending_approval'}</span>
                       {profile.rejection_reason && <small style={{ display: 'block', marginTop: 6, color: '#bf616a' }}>{profile.rejection_reason}</small>}
                     </td>
-                    <td>{profile.batch || '-'} / {profile.member_type || 'newbie'}</td>
-                    <td style={{ minWidth: 220 }}>{profile.debating_experience || '-'}</td>
+                    <td>{profile.batch || '-'} / {profile.username || '-'}</td>
+                    <td>{profile.birthdate || '-'}</td>
                     <td>
-                      <div style={{ display: 'grid', gap: '8px', minWidth: 220 }}>
+                      <div style={{ display: 'grid', gap: '8px', minWidth: 'auto' }}>
                         <input
                           className="input"
                           value={rejectionReasons[profile.id!] || ''}
@@ -1481,7 +1559,7 @@ export default function EbAreaPage() {
                         <button className="primary-button" type="button" onClick={() => approveProfile(profile.id!)}>
                           Approve
                         </button>
-                        <button className="ghost-button" type="button" onClick={() => rejectProfile(profile.id!)}>
+                        <button className="danger-button" type="button" onClick={() => rejectProfile(profile.id!)}>
                           Reject
                         </button>
                       </div>
@@ -1538,10 +1616,11 @@ export default function EbAreaPage() {
                     {draft.record_kind === 'edit_request' && editDiffRows.length > 0 && (
                       <div style={{ marginTop: 12, padding: 12, background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: 6 }}>
                         <p style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Original Record vs Proposed Changes</p>
-                        <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
-                          <thead>
-                            <tr style={{ color: 'var(--muted)', textAlign: 'left', borderBottom: '1px solid var(--line)' }}>
-                              <th style={{ padding: '4px 0', width: 130 }}>Field</th>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse', minWidth: '400px' }}>
+                            <thead>
+                              <tr style={{ color: 'var(--muted)', textAlign: 'left', borderBottom: '1px solid var(--line)' }}>
+                                <th style={{ padding: '4px 0', width: 'auto' }}>Field</th>
                               <th style={{ padding: '4px 0' }}>Current</th>
                               <th style={{ padding: '4px 0' }}>Submitted Change</th>
                             </tr>
@@ -1556,6 +1635,7 @@ export default function EbAreaPage() {
                             ))}
                           </tbody>
                         </table>
+                        </div>
                       </div>
                     )}
                     
@@ -1679,7 +1759,7 @@ export default function EbAreaPage() {
                     <button className="primary-button" type="button" disabled={reviewingSubmissionId === submission.id} onClick={() => approveCompetitionSubmission(submission)}>
                       {reviewingSubmissionId === submission.id ? 'Approving...' : 'Approve to Canonical Records'}
                     </button>
-                    <button className="ghost-button" type="button" disabled={reviewingSubmissionId === submission.id} onClick={() => rejectCompetitionSubmission(submission)}>
+                    <button className="danger-button" type="button" disabled={reviewingSubmissionId === submission.id} onClick={() => rejectCompetitionSubmission(submission)}>
                       Reject
                     </button>
                   </div>
@@ -1701,6 +1781,7 @@ export default function EbAreaPage() {
               <p className={styles.subtle}>Ubah tingkat akses system_role (member, eb, admin). HANYA UNTUK ADMIN.</p>
             </div>
           </div>
+          <SetupChecklist />
           <div className={styles.attendanceTableWrap}>
             <table className={styles.attendanceTable}>
               <thead>
@@ -1731,17 +1812,30 @@ export default function EbAreaPage() {
                       </span>
                     </td>
                     <td>
-                      <select 
-                        className="input" 
-                        style={{ padding: '4px 8px', height: 'auto', minHeight: '32px' }}
-                        value={p.system_role || 'member'}
-                        onChange={(e) => updateUserSystemRole(p.id!, e.target.value)}
-                        disabled={p.user_id === userId} // Prevent admin from changing their own role to avoid getting locked out
-                      >
-                        <option value="member">Member</option>
-                        <option value="eb">EB</option>
-                        <option value="admin">Admin</option>
-                      </select>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                        <select 
+                          className="input" 
+                          style={{ padding: '4px 8px', height: 'auto', minHeight: '32px', flex: 1 }}
+                          value={p.system_role || 'member'}
+                          onChange={(e) => updateUserSystemRole(p.id!, e.target.value)}
+                          disabled={p.user_id === userId} // Prevent admin from changing their own role to avoid getting locked out
+                        >
+                          <option value="guest">Guest</option>
+                          <option value="member">Member</option>
+                          <option value="eb">EB</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                        {isAdmin && p.user_id !== userId && (
+                          <button 
+                            className="danger-button" 
+                            style={{ padding: '4px 12px', minHeight: '32px' }}
+                            onClick={() => deleteUserByAdmin(p.id!)}
+                            title="Hapus User"
+                          >
+                            Hapus
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1812,18 +1906,39 @@ export default function EbAreaPage() {
                           <label className={styles.discordCustomColor} style={{ background: editingRoleColor }} aria-label="Choose custom role color">
                             <input type="color" value={editingRoleColor} onChange={(e) => setEditingRoleColor(e.target.value)} />
                           </label>
-                          <div className={styles.discordColorGrid}>
-                            {ROLE_COLOR_PALETTE.map(c => (
-                              <button
-                                key={c}
-                                className={styles.discordColorBox}
-                                style={{ background: c }}
-                                data-selected={editingRoleColor.toLowerCase() === c}
-                                onClick={() => setEditingRoleColor(c)}
-                                type="button"
-                                aria-label={`Use role color ${c}`}
-                              ></button>
-                            ))}
+                          <div>
+                            <div className={styles.rgbGrid}>
+                              {(['r', 'g', 'b'] as const).map((channel) => (
+                                <label key={channel}>
+                                  {channel.toUpperCase()}
+                                  <input
+                                    className={styles.discordInput}
+                                    type="number"
+                                    min={0}
+                                    max={255}
+                                    value={hexToRgb(editingRoleColor)[channel]}
+                                    onChange={(e) => updateRoleRgb(channel, e.target.value)}
+                                  />
+                                </label>
+                              ))}
+                            </div>
+                            <div className={styles.discordRolePreview}>
+                              <span className="rank-badge" style={roleBadgeStyle(editingRoleColor)}>{editingRoleName || 'Role preview'}</span>
+                              <span className="rank-badge" style={solidRoleStyle(editingRoleColor)}>Solid</span>
+                            </div>
+                            <div className={styles.discordColorGrid}>
+                              {ROLE_COLOR_PALETTE.map(c => (
+                                <button
+                                  key={c}
+                                  className={styles.discordColorBox}
+                                  style={{ background: c }}
+                                  data-selected={editingRoleColor.toLowerCase() === c}
+                                  onClick={() => setEditingRoleColor(c)}
+                                  type="button"
+                                  aria-label={`Use role color ${c}`}
+                                ></button>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1947,7 +2062,7 @@ export default function EbAreaPage() {
                             {w.is_locked ? 'Locked' : 'Open'}
                           </label>
                           <button className="secondary-button" type="button" onClick={() => startWeeklyEdit(w)}>Edit</button>
-                          <button className="ghost-button" type="button" onClick={() => deleteWeeklySession(w.id)}>Hapus</button>
+                          <button className="danger-button" type="button" onClick={() => deleteWeeklySession(w.id)}>Hapus</button>
                         </div>
                       </>
                     )}
@@ -1960,10 +2075,14 @@ export default function EbAreaPage() {
           <article className="panel" style={{ marginTop: '16px' }}>
             <div className="panel-header">
               <div>
-                <h3>UDF Attendance Tracker</h3>
-                <p className={styles.subtle}>Edit presensi per weekly, lihat history member, atau export rekap.</p>
+                <h3>{attendanceGroupLabel(attendanceAudience)} Attendance Tracker</h3>
+                <p className={styles.subtle}>Edit presensi per weekly, lihat history member/guest, atau export rekap per kategori.</p>
               </div>
               <div className={styles.trackerControls}>
+                <div className="segmented" role="group" aria-label="Attendance audience">
+                  <button className={`segment ${attendanceAudience === 'udf' ? 'active' : ''}`} type="button" onClick={() => { setAttendanceAudience('udf'); setSelectedMemberHistoryId(''); }}>UDF</button>
+                  <button className={`segment ${attendanceAudience === 'guest' ? 'active' : ''}`} type="button" onClick={() => { setAttendanceAudience('guest'); setSelectedMemberHistoryId(''); }}>Guest</button>
+                </div>
                 <div className="segmented" role="group" aria-label="Attendance view">
                   <button className={`segment ${attendanceViewMode === 'matrix' ? 'active' : ''}`} type="button" onClick={() => setAttendanceViewMode('matrix')}>Matrix</button>
                   <button className={`segment ${attendanceViewMode === 'history' ? 'active' : ''}`} type="button" onClick={() => setAttendanceViewMode('history')}>Member</button>
@@ -1987,14 +2106,14 @@ export default function EbAreaPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {allProfiles.map((m) => (
+                    {attendanceProfiles.map((m) => (
                       <tr key={m.id}>
                         <td>
                           <div className={styles.memberCell}>
                             <span>{getInitials(m.name)}</span>
                             <div>
                               <strong>{m.name || 'Unnamed Member'}</strong>
-                              <small>{m.caption || m.system_role || 'Member'}</small>
+                              <small>{m.member_type === 'guest' ? [m.faculty, m.delegation_status].filter(Boolean).join(' / ') || 'Guest' : m.caption || m.system_role || 'Member'}</small>
                             </div>
                           </div>
                         </td>
@@ -2030,7 +2149,7 @@ export default function EbAreaPage() {
                     value={selectedHistoryMember?.id || ''}
                     onChange={(e) => setSelectedMemberHistoryId(e.target.value)}
                   >
-                    {allProfiles.map((profile) => (
+                    {attendanceProfiles.map((profile) => (
                       <option key={profile.id} value={profile.id}>{profile.name || 'Unnamed Member'}</option>
                     ))}
                   </select>

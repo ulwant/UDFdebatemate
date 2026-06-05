@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/app/components/ToastContext';
 import styles from './RoomTimer.module.css';
@@ -158,7 +159,7 @@ export default function RoomTimerPage() {
   const latestViewSpeechRef = useRef(0);
   const lastLocalViewChangeRef = useRef(0);
   const viewSaveCounterRef = useRef(0);
-  const realtimeSubscriptionRef = useRef<any>(null);
+  const realtimeSubscriptionRef = useRef<RealtimeChannel | null>(null);
 
   function updateLocalConfig(
     nextFormat: FormatType,
@@ -899,7 +900,7 @@ export default function RoomTimerPage() {
               {canControl && snapshot?.phase === 'live' && <button className={styles.darkButton} onClick={() => setLive(false)} type="button">Back to Lobby</button>}
               {canControl && <button className={styles.darkButton} onClick={applyRoomConfig} type="button">Apply Config</button>}
               <button className={styles.darkButton} onClick={() => navigator.clipboard.writeText(snapshot?.code || '')} type="button">Copy PIN</button>
-              <button className={styles.darkButton} onClick={leaveLobby} style={{ color: '#ef4444' }} type="button">Leave Room</button>
+              <button className={styles.darkButton} onClick={() => { if (window.confirm('Leave this timer room?')) void leaveLobby(); }} style={{ color: '#ef4444' }} type="button">Leave Room</button>
             </div>
 
             {canControl && snapshot && (

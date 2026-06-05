@@ -14,9 +14,89 @@
   flex-wrap: wrap;
 }
 
-.monthNav strong {
-  min-width: 160px;
-  text-align: center;
+.toolbar {
+  margin: 12px 0;
+  justify-content: flex-start;
+}
+
+.filterGroup,
+.toolbarActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.toolbarActions {
+  margin-left: auto;
+}
+
+.viewMenu {
+  position: relative;
+}
+
+.viewMenuList {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  width: 160px;
+  display: grid;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 16px 32px rgba(17, 24, 39, 0.14);
+}
+
+.viewMenuList button {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 800;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.viewMenuList button:hover,
+.viewMenuList button[data-active='true'] {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.legendRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: -2px 0 12px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.legendRow span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendRow i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--green);
+}
+
+.legendRow i[data-kind='weekly'] {
+  background: #c3911c;
+}
+
+.legendRow i[data-kind='eb'] {
+  background: #5f4a8b;
 }
 
 .notice {
@@ -27,10 +107,6 @@
   background: var(--green-soft);
   color: var(--green);
   font-weight: 700;
-}
-
-.toolbar {
-  margin: 12px 0;
 }
 
 .formGrid {
@@ -53,6 +129,45 @@
   grid-template-columns: minmax(0, 1fr) 280px;
   gap: 14px;
   align-items: start;
+}
+
+.calendarCanvas {
+  position: relative;
+  min-width: 0;
+  touch-action: pan-y;
+}
+
+.viewNavButton {
+  position: absolute;
+  top: 50%;
+  z-index: 20;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(23, 91, 69, 0.35);
+  border-radius: 999px;
+  background: white;
+  color: var(--green);
+  cursor: pointer;
+  font-size: 1.35rem;
+  font-weight: 900;
+  line-height: 1;
+  transform: translateY(-50%);
+  box-shadow: 0 8px 18px rgba(17, 24, 39, 0.12);
+}
+
+.viewNavButton:hover {
+  background: var(--green-soft);
+  border-color: rgba(23, 91, 69, 0.55);
+}
+
+.viewNavPrev {
+  left: -14px;
+}
+
+.viewNavNext {
+  right: -14px;
 }
 
 .dayNameRow {
@@ -172,6 +287,138 @@
   gap: 12px;
 }
 
+.cell[data-today='true'] {
+  border-color: rgba(95, 74, 139, 0.48);
+  background: linear-gradient(180deg, #fbfcfb, rgba(95, 74, 139, 0.07));
+}
+
+.cell[data-today='true'] strong {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--green);
+  color: white;
+}
+
+.scheduleList {
+  display: grid;
+  gap: 10px;
+}
+
+.scheduleDay {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.scheduleDate,
+.timelineDate {
+  display: grid;
+  place-items: center;
+  min-height: 74px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.scheduleDate span,
+.scheduleDate small,
+.timelineDate span,
+.timelineDate small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.scheduleDate strong,
+.timelineDate strong {
+  font-size: 1.2rem;
+}
+
+.scheduleItems,
+.timelineEvents {
+  display: grid;
+  gap: 8px;
+}
+
+.timelineGrid {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.timelineDay {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfb;
+  padding: 8px;
+}
+
+.timelineDay[data-selected='true'] {
+  border-color: rgba(23, 91, 69, 0.5);
+  box-shadow: 0 0 0 2px rgba(23, 91, 69, 0.08);
+}
+
+.timelineDay[data-today='true'] {
+  border-color: rgba(95, 74, 139, 0.48);
+  background: linear-gradient(180deg, #fbfcfb, rgba(95, 74, 139, 0.07));
+}
+
+.timelineDay[data-selected='true'] .timelineDate {
+  border-color: rgba(23, 91, 69, 0.5);
+}
+
+.timelineItem {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--green);
+  border-radius: 8px;
+  background: white;
+  padding: 9px;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.timelineItem:hover,
+.timelineItem[data-active='true'] {
+  border-color: rgba(23, 91, 69, 0.5);
+  box-shadow: 0 0 0 2px rgba(23, 91, 69, 0.08);
+}
+
+.timelineItem[data-source='weekly'] {
+  border-left-color: #c3911c;
+}
+
+.timelineItem[data-visibility='eb_admin'] {
+  border-left-color: #5f4a8b;
+}
+
+.timelineItem span,
+.timelineItem small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.timelineItem strong {
+  font-size: 0.9rem;
+  line-height: 1.25;
+}
+
 .createCard {
   background: white;
 }
@@ -250,14 +497,50 @@
 @media (max-width: 680px) {
   .calendarHeader,
   .monthNav,
+  .toolbar,
+  .toolbarActions,
+  .filterGroup,
   .detailPanel,
   .actions {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .monthNav strong {
-    min-width: auto;
+  .toolbarActions {
+    margin-left: 0;
+  }
+
+  .viewMenuList {
+    left: 0;
+    right: auto;
+    width: 100%;
+  }
+
+  .timelineGrid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .viewNavButton {
+    width: 34px;
+    height: 34px;
+    font-size: 1.5rem;
+  }
+
+  .viewNavPrev {
+    left: -10px;
+  }
+
+  .viewNavNext {
+    right: -10px;
+  }
+
+  .scheduleDay {
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  .scheduleDate,
+  .timelineDate {
+    min-height: 58px;
   }
 
   .dayNameRow {
@@ -289,3 +572,9 @@
   }
 }
 
+@media (max-width: 680px) {
+  .dayHeader, .dayCell {
+    width: auto !important;
+    min-width: 0;
+  }
+}

@@ -1,6 +1,15 @@
 'use client';
 
 import { useEffect } from 'react';
+import { hexToRgb, readableTextColor } from '@/lib/profileUtils';
+
+function applyThemeColor(color: string) {
+  const { r, g, b } = hexToRgb(color);
+  document.documentElement.style.setProperty('--green', color);
+  document.documentElement.style.setProperty('--green-rgb', `${r}, ${g}, ${b}`);
+  document.documentElement.style.setProperty('--green-soft', `rgba(${r}, ${g}, ${b}, 0.14)`);
+  document.documentElement.style.setProperty('--green-contrast', readableTextColor(color));
+}
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -9,8 +18,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     const isDark = localStorage.getItem('dark-mode') === 'true';
 
     if (savedColor) {
-      document.documentElement.style.setProperty('--green', savedColor);
-      document.documentElement.style.setProperty('--green-soft', `${savedColor}22`);
+      applyThemeColor(savedColor);
     }
 
     if (isDark) {

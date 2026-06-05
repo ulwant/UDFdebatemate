@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import styles from './MyProfile.module.css';
 import { useToast } from '@/app/components/ToastContext';
 import { useUser } from '@/lib/UserContext';
+import { DEFAULT_PRIVACY_SETTINGS, hexToRgb, PrivacySettings, readableTextColor, rgbToHex } from '@/lib/profileUtils';
 
 const DISCORD_COLORS = [
   '#5865F2', '#EB459E', '#ED4245', '#FEE75C', '#57F287', 
@@ -13,6 +14,7 @@ const DISCORD_COLORS = [
 
 export default function AccountSettings() {
   const { profile } = useUser();
+  const profileId = profile?.id;
   const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState<'security' | 'preferences' | 'privacy'>('security');
   
@@ -22,36 +24,82 @@ export default function AccountSettings() {
   const [newEmail, setNewEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Preferences State
-  const [themeColor, setThemeColor] = useState('#175b45');
-  const [darkMode, setDarkMode] = useState(false);
+  // Privacy State
+  const [privacySettings, setPrivacySettings] = useState<PrivacySettings>(DEFAULT_PRIVACY_SETTINGS);
+  const [loadingPrivacy, setLoadingPrivacy] = useState(false);
 
-  useEffect(() => {
-    // Load preferences from local storage or profile if available
-    const savedColor = localStorage.getItem('theme-color');
-    const savedTheme = localStorage.getItem('dark-mode');
-    if (savedColor) setThemeColor(savedColor);
-    if (savedTheme === 'true') setDarkMode(true);
-  }, []);
+  const loadPrivacySettings = useCallback(async () => {
+    if (!profileId) return;
+    setLoadingPrivacy(true);
+    const { data, error } = await supabase.from('profiles').select('privacy_settings').eq('id', profileId).single();
+    if (!error && data) {
+      setPrivacySettings({ ...DEFAULT_PRIVACY_SETTINGS, ...(data.privacy_settings || {}) });
+    }
+    setLoadingPrivacy(false);
+  }, [profileId]);
+
+  const savePrivacySettings = async () => {
+    if (!profileId) return;
+    setLoading(true);
+    const { error } = await supabase.from('profiles').update({ privacy_settings: privacySettings }).eq('id', profileId);
+    if (error) {
+      addToast({ title: 'Terjadi Kesalahan', message: 'Gagal memperbarui pengaturan privasi', type: 'error' });
+    } else {
+      addToast({ title: 'Berhasil', message: 'Pengaturan privasi berhasil diperbarui', type: 'success' });
+    }
+    setLoading(false);
+  };
+
+  React.useEffect(() => {
+    if (activeTab === 'privacy') {
+      const timer = window.setTimeout(() => { void loadPrivacySettings(); }, 0);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [activeTab, loadPrivacySettings]);
+
+  // Preferences State
+  const [themeColor, setThemeColor] = useState(() => {
+    if (typeof window === 'undefined') return '#175b45';
+    return localStorage.getItem('theme-color') || '#175b45';
+  });
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('dark-mode') === 'true';
+  });
 
   const applyColor = (color: string) => {
+    const { r, g, b } = hexToRgb(color);
     setThemeColor(color);
-    localStorage.setItem('theme-color', color);
     document.documentElement.style.setProperty('--green', color);
-    // Darken color slightly for border/hover effects
-    document.documentElement.style.setProperty('--green-soft', `${color}22`);
-    addToast({ title: 'Tema Diperbarui', message: `Warna aksen berhasil diganti.`, type: 'info', duration: 2000 });
+    document.documentElement.style.setProperty('--green-rgb', `${r}, ${g}, ${b}`);
+    document.documentElement.style.setProperty('--green-soft', `rgba(${r}, ${g}, ${b}, 0.14)`);
+    document.documentElement.style.setProperty('--green-contrast', readableTextColor(color));
+  };
+
+  const applyRgbColor = (channel: 'r' | 'g' | 'b', value: string) => {
+    const current = hexToRgb(themeColor);
+    const next = Math.max(0, Math.min(255, Number(value) || 0));
+    applyColor(rgbToHex(
+      channel === 'r' ? next : current.r,
+      channel === 'g' ? next : current.g,
+      channel === 'b' ? next : current.b,
+    ));
   };
 
   const toggleDarkMode = (isDark: boolean) => {
     setDarkMode(isDark);
-    localStorage.setItem('dark-mode', String(isDark));
     if (isDark) {
       document.body.classList.add('dark-mode');
     } else {
       document.body.classList.remove('dark-mode');
     }
-    addToast({ title: 'Tampilan Diperbarui', type: 'info', duration: 2000 });
+  };
+
+  const savePreferences = () => {
+    localStorage.setItem('theme-color', themeColor);
+    localStorage.setItem('dark-mode', String(darkMode));
+    addToast({ title: 'Tema Diperbarui', message: `Warna telah diperbaharui.`, type: 'info', duration: 2000 });
   };
 
   async function handleChangePassword(e: React.FormEvent) {
@@ -104,6 +152,48 @@ export default function AccountSettings() {
     }
   }
 
+  const [deletePassword1, setDeletePassword1] = useState('');
+  const [deletePassword2, setDeletePassword2] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDeleteAccount(e: React.FormEvent) {
+    e.preventDefault();
+    if (!deletePassword1 || !deletePassword2) {
+      addToast({ title: 'Data Tidak Lengkap', message: 'Harap masukkan password di kedua kolom.', type: 'error' });
+      return;
+    }
+    if (deletePassword1 !== deletePassword2) {
+      addToast({ title: 'Password Tidak Cocok', message: 'Password yang dimasukkan tidak sama.', type: 'error' });
+      return;
+    }
+    const confirmed = window.confirm('Are you sure you want to delete your account? This action cannot be undone.');
+    if (!confirmed) return;
+
+    setDeleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.email) throw new Error('Sesi tidak ditemukan.');
+
+      // Verify password first
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: session.user.email,
+        password: deletePassword1,
+      });
+      if (signInError) throw new Error('Password salah.');
+
+      // Proceed to delete via RPC
+      const { error: deleteError } = await supabase.rpc('delete_own_user');
+      if (deleteError) throw deleteError;
+
+      await supabase.auth.signOut();
+      window.location.href = '/login';
+    } catch (err) {
+      addToast({ title: 'Gagal', message: err instanceof Error ? err.message : 'Terjadi kesalahan saat menghapus akun', type: 'error' });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className={styles.tabContent}>
       <div className={styles.settingsNav}>
@@ -139,6 +229,25 @@ export default function AccountSettings() {
               </div>
               <button type="submit" className="primary-button" disabled={loading} style={{ marginTop: '10px' }}>Change Password</button>
             </form>
+
+            <hr style={{ margin: '30px 0', border: 'none', borderTop: '1px solid var(--line)' }} />
+
+            <h3 style={{ marginBottom: '5px', color: '#dc2626' }}>Delete Account</h3>
+            <p style={{ marginBottom: '20px', color: 'var(--muted)', fontSize: '0.9rem' }}>Permanent action. Confirm with your password twice.</p>
+            
+            <form onSubmit={handleDeleteAccount} className={styles.settingsForm}>
+              <div className={styles.settingsFormGroup}>
+                <label>Password</label>
+                <input type="password" className="input" value={deletePassword1} onChange={(e) => setDeletePassword1(e.target.value)} placeholder="Enter password" />
+              </div>
+              <div className={styles.settingsFormGroup}>
+                <label>Confirm Password</label>
+                <input type="password" className="input" value={deletePassword2} onChange={(e) => setDeletePassword2(e.target.value)} placeholder="Type password again" />
+              </div>
+              <button type="submit" className="primary-button" disabled={deleting} style={{ marginTop: '10px', background: '#dc2626', borderColor: '#b91c1c' }}>
+                {deleting ? 'Deleting...' : 'Delete Account'}
+              </button>
+            </form>
           </div>
         )}
 
@@ -157,6 +266,22 @@ export default function AccountSettings() {
 
             <div className={styles.settingsFormGroup}>
               <label style={{ display: 'block', marginBottom: '10px', fontWeight: 800 }}>Theme Color</label>
+              <div className={styles.rgbGrid} style={{ marginBottom: 12 }}>
+                {(['r', 'g', 'b'] as const).map((channel) => (
+                  <label key={channel}>
+                    {channel.toUpperCase()}
+                    <input
+                      className="input"
+                      type="number"
+                      min={0}
+                      max={255}
+                      value={hexToRgb(themeColor)[channel]}
+                      onChange={(e) => applyRgbColor(channel, e.target.value)}
+                    />
+                  </label>
+                ))}
+              </div>
+              <input type="color" className="input" value={themeColor} onChange={(e) => applyColor(e.target.value)} style={{ maxWidth: 120, padding: 4, marginBottom: 12 }} />
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 {DISCORD_COLORS.map(color => (
                   <button 
@@ -175,24 +300,57 @@ export default function AccountSettings() {
                 ))}
               </div>
             </div>
+
+            <button type="button" className="primary-button" onClick={savePreferences} style={{ marginTop: '20px' }}>
+              Save Preferences
+            </button>
           </div>
         )}
 
         {activeTab === 'privacy' && (
           <div style={{ padding: '1.5rem', maxWidth: '500px' }}>
-            <h3 style={{ marginBottom: '5px' }}>Privacy Settings</h3>
-            <p style={{ marginBottom: '25px', color: 'var(--muted)', fontSize: '0.9rem' }}>Manage who can see your profile and activity.</p>
+            <h3 style={{ marginBottom: '15px' }}>Privacy Settings</h3>
+            <p style={{ marginBottom: '25px', color: 'var(--muted)', fontSize: '0.9rem' }}>
+              Atur bagian profil mana yang dapat dilihat oleh anggota lain (Selain EB dan Admin).
+            </p>
             
-            <div className={styles.settingsFormGroup}>
-              <label style={{ display: 'block', marginBottom: '10px', fontWeight: 800 }}>Profile Visibility</label>
-              <select className="input" defaultValue="public">
-                <option value="public">Public (Visible to everyone)</option>
-                <option value="members">Members Only</option>
-                <option value="private">Private (Only EB/Admin)</option>
-              </select>
-            </div>
-            
-            <button className="primary-button" style={{ marginTop: '20px' }}>Save Privacy Options</button>
+            {loadingPrivacy ? (
+              <p>Memuat pengaturan...</p>
+            ) : (
+              <div className={styles.privacyGrid}>
+                {[
+                  ['birthdate', 'Birthdate'],
+                  ['whatsapp', 'WhatsApp'],
+                  ['instagram', 'Instagram'],
+                  ['website', 'Website'],
+                  ['bio', 'Full Bio'],
+                  ['batch', 'Batch'],
+                ].map(([key, label]) => (
+                  <label key={key} className={styles.privacyToggle} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(privacySettings[key as keyof PrivacySettings])}
+                      onChange={(e) => setPrivacySettings({
+                        ...privacySettings,
+                        [key]: e.target.checked,
+                      })}
+                      style={{ width: '18px', height: '18px' }}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            )}
+
+            <button 
+              type="button" 
+              className="primary-button" 
+              onClick={savePrivacySettings} 
+              disabled={loading || loadingPrivacy}
+              style={{ marginTop: '20px' }}
+            >
+              {loading ? 'Menyimpan...' : 'Simpan Pengaturan Privasi'}
+            </button>
           </div>
         )}
       </article>
