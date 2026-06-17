@@ -121,6 +121,8 @@ export default function LoginPage() {
             }
           : {
               delegation_status: delegationStatus,
+              birthdate: '2000-01-01', // Fallback in case DB requires it
+              username: `guest_${Date.now()}`, // Fallback in case DB requires unique username
             }),
       };
 
@@ -136,7 +138,7 @@ export default function LoginPage() {
       );
 
       if (error) {
-        setMessage(`Daftar gagal: ${error.message}`);
+        setMessage(`Daftar gagal: ${error.message} (Pastikan SQL supabase_profile_guest_privacy_update.sql sudah dijalankan)`);
         return;
       }
 
