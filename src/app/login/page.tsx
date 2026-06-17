@@ -103,22 +103,33 @@ export default function LoginPage() {
     setMessage('Mendaftarkan akun...');
 
     try {
+      const caption = registerType === 'guest' ? 'Guest Debate Mate' : `Calon member UDF${cleanedBatch ? ` ${cleanedBatch}` : ''}`;
+      const memberType = registerType === 'guest' ? 'guest' : 'newbie';
+      const systemRole = registerType === 'guest' ? 'guest' : 'member';
+      const approvalStatus = registerType === 'guest' ? 'approved' : 'pending_approval';
+      const authMetadata = {
+        name: cleanedName,
+        batch: cleanedBatch,
+        faculty: cleanedFaculty,
+        major: cleanedMajor,
+        member_type: memberType,
+        caption,
+        ...(registerType === 'udf'
+          ? {
+              birthdate,
+              username: cleanedUsername,
+            }
+          : {
+              delegation_status: delegationStatus,
+            }),
+      };
+
       const { data, error } = await withTimeout(
         supabase.auth.signUp({
           email,
           password,
           options: {
-            data: {
-              name: cleanedName,
-              batch: cleanedBatch,
-              birthdate: registerType === 'udf' ? birthdate || null : null,
-              username: registerType === 'udf' ? cleanedUsername : null,
-              faculty: cleanedFaculty,
-              major: cleanedMajor,
-              delegation_status: registerType === 'guest' ? delegationStatus : null,
-              member_type: registerType === 'guest' ? 'guest' : 'newbie',
-              caption: registerType === 'guest' ? 'Guest Debate Mate' : `Calon member UDF${cleanedBatch ? ` ${cleanedBatch}` : ''}`,
-            },
+            data: authMetadata,
           },
         }),
         'Register',
@@ -130,28 +141,34 @@ export default function LoginPage() {
       }
 
       if (data.session?.user) {
-        await supabase.from('profiles').upsert({
+        const { error: profileError } = await supabase.from('profiles').upsert({
           user_id: data.session.user.id,
+          email: data.session.user.email,
           name: cleanedName,
-          caption: registerType === 'guest' ? 'Guest Debate Mate' : `Calon member UDF${cleanedBatch ? ` ${cleanedBatch}` : ''}`,
+          caption,
           bio: '',
           avatar_initials: initialsFromName(cleanedName),
           avatar_color: 'blue',
-          system_role: registerType === 'guest' ? 'guest' : 'member',
-          approval_status: registerType === 'guest' ? 'approved' : 'pending_approval',
+          system_role: systemRole,
+          approval_status: approvalStatus,
           batch: cleanedBatch || null,
           birthdate: registerType === 'udf' ? birthdate || null : null,
           username: registerType === 'udf' ? cleanedUsername : null,
           faculty: cleanedFaculty,
           major: cleanedMajor,
           delegation_status: registerType === 'guest' ? delegationStatus : null,
-          member_type: registerType === 'guest' ? 'guest' : 'newbie',
+          member_type: memberType,
           debating_experience: null,
           discord_roles: [],
           contact_links: {},
           privacy_settings: {},
           achievements: [],
         }, { onConflict: 'user_id' });
+
+        if (profileError) {
+          setMessage(`Akun dibuat, tapi profil gagal disimpan: ${profileError.message}`);
+          return;
+        }
 
         setMessage(registerType === 'guest' ? 'Akun guest berhasil dibuat.' : 'Akun berhasil dibuat. Profilmu masuk antrean approval EB/Admin.');
         router.push('/my-profile');
@@ -176,7 +193,7 @@ export default function LoginPage() {
         <div className="panel-header" style={{ justifyContent: 'space-between', gap: '12px' }}>
           <div>
             <p className="eyebrow">Debate Mate Account</p>
-            <h3>{isRegister ? 'Daftar Akun UDF' : 'Login to Debate Mate'}</h3>
+            <h3>{isRegister ? (registerType === 'guest' ? 'Daftar Guest' : 'Daftar Akun UDF') : 'Login to Debate Mate'}</h3>
           </div>
           <div className="segmented" role="group" aria-label="Auth mode">
             <button className={`segment ${!isRegister ? 'active' : ''}`} type="button" onClick={() => setMode('login')}>Login</button>
@@ -250,7 +267,7 @@ export default function LoginPage() {
           </div>
 
           <button type="submit" className="primary-button" disabled={authLoading}>
-            {authLoading ? 'Processing...' : isRegister ? 'Daftar dan Minta Approval' : 'Login'}
+            {authLoading ? 'Processing...' : isRegister ? (registerType === 'guest' ? 'Daftar Guest' : 'Daftar dan Minta Approval') : 'Login'}
           </button>
         </form>
 
