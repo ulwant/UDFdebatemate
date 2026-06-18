@@ -1,0 +1,108 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="activity_diagram_presensi" name="Alur Latihan &amp; Presensi">
+    <mxGraphModel dx="1563" dy="1584" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="pool_main" parent="1" style="shape=swimlane;whiteSpace=wrap;html=1;childLayout=swimlaneLayout;startSize=30;horizontal=true;horizontalStack=1;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;fontStyle=1;align=center;" value="Activity Diagram: Alur Latihan rutin &amp;amp; Presensi Real-time" vertex="1">
+          <mxGeometry height="920" width="750" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="lane_member" parent="pool_main" style="shape=swimlane;html=1;startSize=23;collapsible=0;fontStyle=1;" value="Member / Guest" vertex="1">
+          <mxGeometry height="890" width="250" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="act_start" parent="lane_member" style="ellipse;whiteSpace=wrap;html=1;fillColor=#000000;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="30" width="30" x="110" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="act_login" parent="lane_member" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=10;" value="Buka Aplikasi &lt;br&gt;&amp;amp; Melakukan Login" vertex="1">
+          <mxGeometry height="50" width="140" x="55" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="dec_check_status" parent="lane_member" style="rhombus;whiteSpace=wrap;html=1;" value="Apakah Status&lt;br&gt;Approved?" vertex="1">
+          <mxGeometry height="70" width="110" x="70" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="act_scan_qr" parent="lane_member" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=10;" value="Scan QR Code&lt;br&gt;di Layar EB" vertex="1">
+          <mxGeometry height="50" width="140" x="55" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="act_input_manual" parent="lane_member" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=10;" value="Input Token Manual&lt;br&gt;(Fallback Mode)" vertex="1">
+          <mxGeometry height="50" width="140" x="55" y="450" as="geometry" />
+        </mxCell>
+        <mxCell id="act_join_timer" parent="lane_member" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=10;" value="Input PIN 6-Digit &lt;br&gt;&amp;amp; Join Timer Room" vertex="1">
+          <mxGeometry height="50" width="140" x="55" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="act_simulasi_debat" parent="lane_member" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=10;" value="Berpartisipasi &lt;br&gt;Simulasi Latihan" vertex="1">
+          <mxGeometry height="50" width="140" x="55" y="750" as="geometry" />
+        </mxCell>
+        <mxCell id="act_end" parent="lane_member" style="ellipse;html=1;shape=endState;fillColor=#000000;strokeColor=#000000;" value="" vertex="1">
+          <mxGeometry height="30" width="30" x="110" y="830" as="geometry" />
+        </mxCell>
+        <mxCell id="flow_1" edge="1" parent="lane_member" source="act_start" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="act_login" value="" />
+        <mxCell id="flow_2" edge="1" parent="lane_member" source="act_login" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="dec_check_status" value="" />
+        <mxCell id="flow_3" edge="1" parent="lane_member" source="dec_check_status" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="act_scan_qr" value="Ya" />
+        <mxCell id="flow_4" edge="1" parent="lane_member" source="dec_check_status" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;" target="act_login" value="Tidak">
+          <mxGeometry relative="1" x="-0.7" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="flow_10" edge="1" parent="lane_member" source="act_input_manual" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;" target="act_scan_qr" value="" />
+        <mxCell id="flow_16" edge="1" parent="lane_member" source="act_join_timer" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="act_simulasi_debat" value="" />
+        <mxCell id="flow_20" edge="1" parent="lane_member" source="act_simulasi_debat" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="act_end" value="" />
+        <mxCell id="lane_eb" parent="pool_main" style="shape=swimlane;html=1;startSize=23;collapsible=0;fontStyle=1;" value="Executive Board (EB)" vertex="1">
+          <mxGeometry height="890" width="250" x="250" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="act_create_session" parent="lane_eb" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=10;" value="Membuat Sesi &lt;br&gt;Latihan Mingguan" vertex="1">
+          <mxGeometry height="50" width="140" x="55" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="act_show_qr" parent="lane_eb" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=10;" value="Generate &amp;amp; Tampilkan&lt;br&gt;QR Code Dinamis" vertex="1">
+          <mxGeometry height="50" width="140" x="55" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="act_create_timer" parent="lane_eb" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=10;" value="Membuat Timer Room &lt;br&gt;Format AP / BP" vertex="1">
+          <mxGeometry height="50" width="140" x="55" y="580" as="geometry" />
+        </mxCell>
+        <mxCell id="act_share_pin" parent="lane_eb" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=10;" value="Membagikan PIN &lt;br&gt;6-Digit Room" vertex="1">
+          <mxGeometry height="50" width="140" x="55" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="act_control_timer" parent="lane_eb" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=10;" value="Mengendalikan Timer&lt;br&gt;(Start / Pause / Reset)" vertex="1">
+          <mxGeometry height="50" width="140" x="55" y="750" as="geometry" />
+        </mxCell>
+        <mxCell id="flow_6" edge="1" parent="lane_eb" source="act_create_session" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="act_show_qr" value="" />
+        <mxCell id="flow_14" edge="1" parent="lane_eb" source="act_create_timer" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="act_share_pin" value="" />
+        <mxCell id="lane_supabase" parent="pool_main" style="shape=swimlane;html=1;startSize=23;collapsible=0;fontStyle=1;" value="Server Cloud (Supabase)" vertex="1">
+          <mxGeometry height="890" width="250" x="500" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="act_save_session" parent="lane_supabase" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=10;" value="Simpan Sesi &lt;br&gt;&amp;amp; Token QR ke DB" vertex="1">
+          <mxGeometry height="50" width="140" x="55" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="dec_validate_token" parent="lane_supabase" style="rhombus;whiteSpace=wrap;html=1;" value="Apakah Token &lt;br&gt;Valid &amp;amp; Belum &lt;br&gt;Expired?" vertex="1">
+          <mxGeometry height="80" width="120" x="65" y="345" as="geometry" />
+        </mxCell>
+        <mxCell id="act_write_present" parent="lane_supabase" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=10;" value="Tulis Data Kehadiran&lt;br&gt;ke attendance_records" vertex="1">
+          <mxGeometry height="50" width="140" x="55" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="act_init_websocket" parent="lane_supabase" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=10;" value="Inisialisasi Jalur&lt;br&gt;Realtime Channel" vertex="1">
+          <mxGeometry height="50" width="140" x="55" y="580" as="geometry" />
+        </mxCell>
+        <mxCell id="act_broadcast_state" parent="lane_supabase" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=10;" value="Broadcast State &lt;br&gt;Waktu Latihan (&amp;lt;1s)" vertex="1">
+          <mxGeometry height="50" width="140" x="55" y="750" as="geometry" />
+        </mxCell>
+        <mxCell id="flow_11" edge="1" parent="lane_supabase" source="dec_validate_token" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;" target="act_write_present" value="Ya" />
+        <mxCell id="flow_5" edge="1" parent="pool_main" source="act_login" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="act_create_session" value="" />
+        <mxCell id="flow_7" edge="1" parent="pool_main" source="act_show_qr" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="act_save_session" value="" />
+        <mxCell id="flow_8" edge="1" parent="pool_main" source="act_scan_qr" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;" target="dec_validate_token" value="" />
+        <mxCell id="flow_9" edge="1" parent="pool_main" source="dec_validate_token" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;" target="act_input_manual" value="Tidak (Fallback)">
+          <mxGeometry relative="1" x="-0.2" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="flow_12" edge="1" parent="pool_main" source="act_write_present" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;" target="act_create_timer" value="" />
+        <mxCell id="flow_13" edge="1" parent="pool_main" source="act_create_timer" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="act_init_websocket" value="" />
+        <mxCell id="flow_15" edge="1" parent="pool_main" source="act_share_pin" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="act_join_timer" value="" />
+        <mxCell id="flow_17" edge="1" parent="pool_main" source="act_simulasi_debat" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="act_control_timer" value="" />
+        <mxCell id="flow_18" edge="1" parent="pool_main" source="act_control_timer" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="act_broadcast_state" value="" />
+        <mxCell id="flow_19" edge="1" parent="pool_main" source="act_broadcast_state" style="endArrow=open;endSize=12;html=1;rounded=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.25;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;" target="act_simulasi_debat" value="Loop Sync &amp;lt; 1s">
+          <mxGeometry relative="1" x="-0.3" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
